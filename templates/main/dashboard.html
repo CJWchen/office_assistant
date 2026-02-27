@@ -1,0 +1,593 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - 智能办公文档处理助手{% endblock %}
+
+{% block head_extra %}
+<link href="https://unpkg.com/filepond/dist/filepond.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- 欢迎横幅 -->
+    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 text-white mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold mb-2">欢迎回来，{{ current_user.username }}！</h1>
+                <p class="text-blue-100">AI办公自动化助手已就绪，开始提升您的工作效率吧</p>
+            </div>
+            <div class="mt-4 md:mt-0">
+                <span class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium">
+                    账户类型：免费版
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- 左侧：快速操作 -->
+        <div class="lg:col-span-2">
+            <!-- 文件上传区域 -->
+            <div class="bg-white rounded-2xl card-shadow p-6 mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">上传文件进行处理</h2>
+                <p class="text-gray-600 mb-6">支持Excel、文本、音频等多种格式，AI智能分析处理</p>
+                
+                <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+                    <i class="fas fa-cloud-upload-alt text-gray-400 text-4xl mb-4"></i>
+                    <p class="text-gray-600 mb-2">拖放文件到此处，或点击选择文件</p>
+                    <p class="text-sm text-gray-500 mb-4">支持 .xlsx, .csv, .txt, .mp3 等格式，最大50MB</p>
+                    
+                    <input type="file" id="fileInput" class="hidden" multiple>
+                    <button onclick="$('#fileInput').click()" class="btn-primary px-6">
+                        <i class="fas fa-folder-open mr-2"></i>选择文件
+                    </button>
+                    
+                    <!-- 文件类型选择 -->
+                    <div class="mt-6 flex flex-wrap gap-3 justify-center">
+                        <button onclick="setFileType('excel')" class="file-type-btn bg-green-100 text-green-800 px-4 py-2 rounded-lg">
+                            <i class="fas fa-file-excel mr-2"></i>Excel处理
+                        </button>
+                        <button onclick="setFileType('text')" class="file-type-btn bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
+                            <i class="fas fa-file-alt mr-2"></i>文本分析
+                        </button>
+                        <button onclick="setFileType('audio')" class="file-type-btn bg-purple-100 text-purple-800 px-4 py-2 rounded-lg">
+                            <i class="fas fa-file-audio mr-2"></i>音频转写
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 上传进度 -->
+                <div id="uploadProgress" class="mt-6 hidden">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>上传进度</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="progressBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <div id="uploadStatus" class="text-sm text-gray-500 mt-2"></div>
+                </div>
+            </div>
+            
+            <!-- 最近上传 -->
+            <div class="bg-white rounded-2xl card-shadow p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">最近上传的文件</h2>
+                    <button onclick="refreshUploads()" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-sync-alt mr-1"></i>刷新
+                    </button>
+                </div>
+                
+                <div id="uploadsList" class="space-y-4">
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-folder-open text-3xl mb-3"></i>
+                        <p>暂无上传记录</p>
+                        <p class="text-sm mt-2">上传文件后，记录将显示在这里</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <a href="#" class="text-blue-600 hover:text-blue-800 font-medium">
+                        <i class="fas fa-history mr-1"></i>查看全部历史记录
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Excel数据预览 -->
+            <div class="bg-white rounded-2xl card-shadow p-6 mt-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Excel数据预览</h2>
+                <div id="excelPreviewArea" class="hidden">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium text-gray-700 mb-3">数据表格（前10行）</h3>
+                        <div class="overflow-x-auto">
+                            <table id="excelDataTable" class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr id="tableHeader"></tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-700 mb-3">统计信息</h3>
+                        <div id="statsInfo" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    </div>
+                </div>
+                <div id="noPreviewMessage" class="text-center py-8 text-gray-500">
+                    <i class="fas fa-file-excel text-3xl mb-3"></i>
+                    <p>选择Excel文件进行预览</p>
+                    <p class="text-sm mt-2">点击最近上传列表中的Excel文件查看数据预览</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧：功能导航 -->
+        <div class="space-y-6">
+            <!-- 功能卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">AI办公工具</h3>
+                <div class="space-y-3">
+                    <a href="#" class="flex items-center p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="bg-green-100 p-2 rounded-lg mr-3">
+                            <i class="fas fa-file-excel text-green-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">Excel智能处理</p>
+                            <p class="text-sm text-gray-600">数据清洗、分析、可视化</p>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="flex items-center p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="bg-blue-100 p-2 rounded-lg mr-3">
+                            <i class="fas fa-file-powerpoint text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">PPT自动生成</p>
+                            <p class="text-sm text-gray-600">内容结构化、模板匹配</p>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="flex items-center p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="bg-purple-100 p-2 rounded-lg mr-3">
+                            <i class="fas fa-comments text-purple-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">会议纪要助手</p>
+                            <p class="text-sm text-gray-600">语音转文字、关键信息提取</p>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="flex items-center p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="bg-yellow-100 p-2 rounded-lg mr-3">
+                            <i class="fas fa-chart-line text-yellow-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">数据分析仪表板</p>
+                            <p class="text-sm text-gray-60">多维度数据可视化</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 用户信息 -->
+            <div class="bg-white rounded-2xl card-shadow p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">账户信息</h3>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-600">用户名</p>
+                        <p class="font-medium">{{ current_user.username }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">邮箱</p>
+                        <p class="font-medium">{{ current_user.email }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">注册时间</p>
+                        <p class="font-medium">{{ current_user.created_at.strftime('%Y-%m-%d') if current_user.created_at else '未知' }}</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <a href="#" class="block text-center btn-secondary py-2">
+                        <i class="fas fa-cog mr-2"></i>账户设置
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 系统状态 -->
+            <div class="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-6 text-white">
+                <h3 class="text-lg font-bold mb-4">系统状态</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">AI服务</span>
+                        <span class="text-green-400 font-medium">在线</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">存储空间</span>
+                        <span class="text-blue-400 font-medium">充足</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">API速率</span>
+                        <span class="text-blue-400 font-medium">正常</span>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t border-gray-700">
+                    <button onclick="checkSystemStatus()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg transition">
+                        <i class="fas fa-heartbeat mr-2"></i>检查系统状态
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/filepond/dist/filepond.js"></script>
+<script>
+    // 当前选择的文件类型
+    let currentFileType = 'excel';
+    
+    // 设置文件类型
+    function setFileType(type) {
+        currentFileType = type;
+        
+        // 更新按钮状态
+        $('.file-type-btn').removeClass('ring-2 ring-offset-2');
+        $(`.file-type-btn:contains(${type === 'excel' ? 'Excel' : type === 'text' ? '文本' : '音频'})`)
+            .addClass('ring-2 ring-offset-2 ring-blue-500');
+    }
+    
+    // 初始化文件类型按钮
+    $(document).ready(function() {
+        setFileType('excel');
+        
+        // 加载最近上传的文件
+        loadRecentUploads();
+    });
+    
+    // 文件上传处理
+    $('#fileInput').on('change', function(e) {
+        const files = e.target.files;
+        if (files.length === 0) return;
+        
+        uploadFiles(files);
+    });
+    
+    // 上传文件
+    function uploadFiles(files) {
+        $('#uploadProgress').removeClass('hidden');
+        $('#progressBar').css('width', '0%');
+        $('#progressPercent').text('0%');
+        $('#uploadStatus').text('准备上传...');
+        
+        let uploadedCount = 0;
+        const totalFiles = files.length;
+        
+        Array.from(files).forEach((file, index) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('file_type', currentFileType);
+            
+            $.ajax({
+                url: '{{ url_for("upload.upload_file") }}',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    uploadedCount++;
+                    const progress = Math.round((uploadedCount / totalFiles) * 100);
+                    
+                    $('#progressBar').css('width', progress + '%');
+                    $('#progressPercent').text(progress + '%');
+                    $('#uploadStatus').text(`已上传 ${uploadedCount}/${totalFiles} 个文件`);
+                    
+                    if (uploadedCount === totalFiles) {
+                        $('#uploadStatus').text('上传完成！');
+                        setTimeout(function() {
+                            $('#uploadProgress').addClass('hidden');
+                            loadRecentUploads(); // 刷新列表
+                        }, 2000);
+                    }
+                },
+                error: function(xhr) {
+                    $('#uploadStatus').text(`文件 ${file.name} 上传失败`);
+                    console.error('上传错误:', xhr.responseJSON);
+                }
+            });
+        });
+    }
+    
+    // 加载最近上传的文件
+    function loadRecentUploads() {
+        $.ajax({
+            url: '{{ url_for("upload.get_uploads") }}',
+            type: 'GET',
+            data: { page: 1, per_page: 5 },
+            success: function(response) {
+                if (response.success && response.data.items.length > 0) {
+                    displayUploadsList(response.data.items);
+                } else {
+                    $('#uploadsList').html(`
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-folder-open text-3xl mb-3"></i>
+                            <p>暂无上传记录</p>
+                            <p class="text-sm mt-2">上传文件后，记录将显示在这里</p>
+                        </div>
+                    `);
+                }
+            },
+            error: function() {
+                console.error('加载上传记录失败');
+            }
+        });
+    }
+    
+    // 显示上传列表
+    function displayUploadsList(items) {
+        let html = '';
+        
+        items.forEach(item => {
+            const fileSize = formatFileSize(item.file_size);
+            const uploadTime = new Date(item.uploaded_at).toLocaleString('zh-CN');
+            const iconClass = getFileIconClass(item.file_type);
+            
+            // 为Excel文件添加预览功能
+            const isExcel = item.file_type === 'excel';
+            const previewBtn = isExcel ? `
+                <button onclick="previewExcelFile(${item.id}, '${item.original_filename}')" 
+                        class="ml-2 btn-primary px-3 py-1 text-sm">
+                    <i class="fas fa-eye mr-1"></i>预览
+                </button>
+            ` : '';
+            
+            html += `
+            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center">
+                        <div class="${iconClass.bg} p-2 rounded-lg mr-3">
+                            <i class="${iconClass.icon} text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">${item.original_filename}</p>
+                            <div class="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                                <span><i class="fas fa-database mr-1"></i>${fileSize}</span>
+                                <span><i class="fas fa-calendar mr-1"></i>${uploadTime}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="px-3 py-1 text-xs rounded-full ${getFileTypeBadgeClass(item.file_type)}">
+                            ${getFileTypeText(item.file_type)}
+                        </span>
+                        ${previewBtn}
+                    </div>
+                </div>
+            </div>
+            `;
+        });
+        
+        $('#uploadsList').html(html);
+    }
+    
+    // 刷新上传列表
+    function refreshUploads() {
+        loadRecentUploads();
+    }
+    
+    // 检查系统状态
+    function checkSystemStatus() {
+        $.ajax({
+            url: '{{ url_for("main.api_status") }}',
+            type: 'GET',
+            success: function(response) {
+                alert(`系统状态检查：\n服务：${response.service}\n版本：${response.version}\n状态：${response.status}`);
+            },
+            error: function() {
+                alert('系统状态检查失败');
+            }
+        });
+    }
+    
+    // 工具函数
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function getFileIconClass(fileType) {
+        switch(fileType) {
+            case 'excel': return { icon: 'fas fa-file-excel', bg: 'bg-green-100' };
+            case 'text': return { icon: 'fas fa-file-alt', bg: 'bg-blue-100' };
+            case 'audio': return { icon: 'fas fa-file-audio', bg: 'bg-purple-100' };
+            default: return { icon: 'fas fa-file', bg: 'bg-gray-100' };
+        }
+    }
+    
+    function getFileTypeBadgeClass(fileType) {
+        switch(fileType) {
+            case 'excel': return 'bg-green-100 text-green-800';
+            case 'text': return 'bg-blue-100 text-blue-800';
+            case 'audio': return 'bg-purple-100 text-purple-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    }
+    
+    function getFileTypeText(fileType) {
+        switch(fileType) {
+            case 'excel': return 'Excel文件';
+            case 'text': return '文本文件';
+            case 'audio': return '音频文件';
+            default: return '其他文件';
+        }
+    }
+    
+    // Excel文件预览功能
+    function previewExcelFile(fileId, filename) {
+        // 显示加载状态
+        $('#excelPreviewArea').addClass('hidden');
+        $('#noPreviewMessage').html(`
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-3"></div>
+                <p>正在加载Excel数据...</p>
+                <p class="text-sm mt-2">文件: ${filename}</p>
+            </div>
+        `).removeClass('hidden');
+        
+        // 调用API获取Excel预览数据
+        $.ajax({
+            url: `/api/excel/preview/${fileId}`,
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    displayExcelPreview(response.data, response.stats, filename);
+                } else {
+                    showPreviewError('加载失败: ' + response.message);
+                }
+            },
+            error: function(xhr) {
+                showPreviewError('API调用失败: ' + (xhr.responseJSON?.message || xhr.statusText));
+            }
+        });
+    }
+    
+    // 显示Excel预览数据
+    function displayExcelPreview(data, stats, filename) {
+        // 更新标题显示当前文件
+        $('#excelPreviewArea').prev('h2').html(`Excel数据预览: <span class="text-blue-600">${filename}</span>`);
+        
+        // 清空表格
+        $('#tableHeader').empty();
+        $('#tableBody').empty();
+        
+        // 如果有数据，构建表头和表格内容
+        if (data.length > 0) {
+            // 获取表头（第一行的键）
+            const firstRow = data[0];
+            const headers = Object.keys(firstRow);
+            
+            // 构建表头
+            headers.forEach(header => {
+                $('#tableHeader').append(`<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`);
+            });
+            
+            // 构建表格内容
+            data.forEach(row => {
+                const rowHtml = `<tr>`;
+                let rowContent = rowHtml;
+                
+                headers.forEach(header => {
+                    const value = row[header];
+                    // 处理null/undefined值
+                    const displayValue = (value === null || value === undefined) ? 
+                        '<span class="text-gray-400">-</span>' : 
+                        String(value);
+                    
+                    rowContent += `<td class="px-4 py-3 text-sm text-gray-700 border-t">${displayValue}</td>`;
+                });
+                
+                rowContent += `</tr>`;
+                $('#tableBody').append(rowContent);
+            });
+        } else {
+            $('#tableBody').html(`
+                <tr>
+                    <td colspan="100" class="px-4 py-8 text-center text-gray-500">
+                        <i class="fas fa-exclamation-circle text-xl mb-3"></i>
+                        <p>Excel文件中没有数据</p>
+                    </td>
+                </tr>
+            `);
+        }
+        
+        // 显示统计信息
+        displayStatsInfo(stats);
+        
+        // 显示预览区域，隐藏提示消息
+        $('#excelPreviewArea').removeClass('hidden');
+        $('#noPreviewMessage').addClass('hidden');
+    }
+    
+    // 显示统计信息
+    function displayStatsInfo(stats) {
+        const statsHtml = `
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h4 class="font-medium text-gray-700 mb-2">基本维度</h4>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="text-gray-600">总行数:</div>
+                    <div class="font-medium">${stats.row_count}</div>
+                    <div class="text-gray-600">总列数:</div>
+                    <div class="font-medium">${stats.column_count}</div>
+                    <div class="text-gray-600">缺失值总数:</div>
+                    <div class="font-medium">${stats.missing_values_total}</div>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h4 class="font-medium text-gray-700 mb-2">数据类型分布</h4>
+                <div class="text-sm space-y-1">
+                    ${Object.entries(stats.data_types).map(([type, count]) => 
+                        `<div class="flex justify-between">
+                            <span class="text-gray-600">${type}:</span>
+                            <span class="font-medium">${count}</span>
+                        </div>`
+                    ).join('')}
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h4 class="font-medium text-gray-700 mb-2">预处理信息</h4>
+                <div class="text-sm space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">原始行数:</span>
+                        <span class="font-medium">${stats.preprocessing.original_shape[0]}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">原始列数:</span>
+                        <span class="font-medium">${stats.preprocessing.original_shape[1]}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">移除空行:</span>
+                        <span class="font-medium">${stats.preprocessing.removed_empty_rows}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">移除空列:</span>
+                        <span class="font-medium">${stats.preprocessing.removed_empty_columns}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#statsInfo').html(statsHtml);
+    }
+    
+    // 显示预览错误
+    function showPreviewError(message) {
+        $('#noPreviewMessage').html(`
+            <div class="text-center py-8 text-red-500">
+                <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
+                <p>${message}</p>
+                <button onclick="resetPreview()" class="mt-4 btn-secondary px-4 py-2">
+                    <i class="fas fa-redo mr-1"></i>重新选择文件
+                </button>
+            </div>
+        `).removeClass('hidden');
+        $('#excelPreviewArea').addClass('hidden');
+    }
+    
+    // 重置预览状态
+    function resetPreview() {
+        $('#excelPreviewArea').addClass('hidden');
+        $('#noPreviewMessage').html(`
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-file-excel text-3xl mb-3"></i>
+                <p>选择Excel文件进行预览</p>
+                <p class="text-sm mt-2">点击最近上传列表中的Excel文件查看数据预览</p>
+            </div>
+        `).removeClass('hidden');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议纪要助手 - 智能办公文档处理助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-secondary {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .priority-high {
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+        .priority-medium {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+        .priority-low {
+            background-color: #d1fae5;
+            color: #065f46;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-robot text-blue-600 text-2xl"></i>
+                    </div>
+                    <div class="hidden md:ml-6 md:flex md:space-x-8">
+                        <a href="{{ url_for('main.dashboard') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium">
+                            <i class="fas fa-tachometer-alt mr-2"></i>仪表板
+                        </a>
+                        <a href="{{ url_for('main.excel_cleaner_page') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium">
+                            <i class="fas fa-file-excel mr-2"></i>Excel处理
+                        </a>
+                        <a href="{{ url_for('main.ppt_generator_page') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium">
+                            <i class="fas fa-file-powerpoint mr-2"></i>PPT生成
+                        </a>
+                        <a href="{{ url_for('main.meeting_minutes_page') }}" class="text-blue-600 border-b-2 border-blue-600 px-3 py-2 text-sm font-medium">
+                            <i class="fas fa-comments mr-2"></i>会议纪要
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <div class="ml-3 relative">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-gray-700 text-sm">欢迎，{{ current_user.username }}</span>
+                            <button onclick="logout()" class="btn-secondary">
+                                <i class="fas fa-sign-out-alt mr-2"></i>退出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 页面标题 -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">会议纪要助手</h1>
+            <p class="mt-2 text-gray-600">上传会议文本文件，AI自动提取关键信息、生成摘要、识别待办事项和时间线</p>
+        </div>
+
+        <!-- 主界面布局 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左侧：文件上传和处理区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 文件上传卡片 -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">上传会议文件</h2>
+                    <p class="text-gray-600 mb-6">支持.txt和.docx格式的会议记录文件，AI自动进行解析和摘要生成</p>
+                    
+                    <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+                        <i class="fas fa-file-upload text-gray-400 text-4xl mb-4"></i>
+                        <p class="text-gray-600 mb-2">拖放文件到此处，或点击选择文件</p>
+                        <p class="text-sm text-gray-500 mb-4">支持.txt和.docx格式，最大10MB</p>
+                        
+                        <input type="file" id="fileInput" class="hidden" accept=".txt,.docx">
+                        <button onclick="$('#fileInput').click()" class="btn-primary px-6">
+                            <i class="fas fa-folder-open mr-2"></i>选择文件
+                        </button>
+                        
+                        <!-- 语言选择 -->
+                        <div class="mt-6 flex flex-wrap gap-3 justify-center">
+                            <button onclick="setLanguage('zh')" class="language-btn bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
+                                <i class="fas fa-language mr-2"></i>中文会议
+                            </button>
+                            <button onclick="setLanguage('en')" class="language-btn bg-green-100 text-green-800 px-4 py-2 rounded-lg">
+                                <i class="fas fa-globe mr-2"></i>英文会议
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 处理进度 -->
+                    <div id="processingArea" class="mt-6 hidden">
+                        <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
+                            <span>处理进度</span>
+                            <span id="processingPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="processingBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <div id="processingStatus" class="text-sm text-gray-500 mt-2">正在初始化...</div>
+                    </div>
+                </div>
+                
+                <!-- 结果展示区域 -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">处理结果</h2>
+                    
+                    <!-- 标签页导航 -->
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-8">
+                            <button onclick="showTab('summary')" id="tabSummary" class="summary-tab border-b-2 border-blue-600 text-blue-600 py-2 px-1 text-sm font-medium">会议摘要</button>
+                            <button onclick="showTab('todos')" id="tabTodos" class="todos-tab text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-1 text-sm font-medium border-transparent border-b-2">待办事项</button>
+                            <button onclick="showTab('timeline')" id="tabTimeline" class="timeline-tab text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-1 text-sm font-medium border-transparent border-b-2">时间线</button>
+                            <button onclick="showTab('export')" id="tabExport" class="export-tab text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-1 text-sm font-medium border-transparent border-b-2">导出</button>
+                        </nav>
+                    </div>
+                    
+                    <!-- 摘要内容 -->
+                    <div id="summaryContent" class="tab-content">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-file-alt text-3xl mb-3"></i>
+                            <p>暂无摘要内容</p>
+                            <p class="text-sm mt-2">上传会议文件后，AI生成的摘要将显示在这里</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 待办事项内容 -->
+                    <div id="todosContent" class="tab-content hidden">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-tasks text-3xl mb-3"></i>
+                            <p>暂无待办事项</p>
+                            <p class="text-sm mt-2">上传会议文件后，AI识别的待办事项将显示在这里</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 时间线内容 -->
+                    <div id="timelineContent" class="tab-content hidden">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-chart-line text-3xl mb-3"></i>
+                            <p>暂无时间线数据</p>
+                            <p class="text-sm mt-2">上传会议文件后，AI提取的时间线图表将显示在这里</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 导出内容 -->
+                    <div id="exportContent" class="tab-content hidden">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-download text-3xl mb-3"></i>
+                            <p>暂无导出选项</p>
+                            <p class="text-sm mt-2">处理完成后，可以选择不同格式导出会议纪要</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：历史记录和帮助 -->
+            <div class="space-y-6">
+                <!-- 历史记录 -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">历史记录</h3>
+                    <div id="historyList" class="space-y-3">
+                        <div class="text-center py-4 text-gray-500">
+                            <i class="fas fa-history text-xl mb-2"></i>
+                            <p class="text-sm">暂无历史记录</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 使用指南 -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">使用指南</h3>
+                    <div class="space-y-3 text-sm text-gray-600">
+                        <div class="flex items-start">
+                            <i class="fas fa-upload text-blue-500 mt-1 mr-2"></i>
+                            <span>上传.txt或.docx格式的会议记录文件</span>
+                        </div>
+                        <div class="flex items-start">
+                            <i class="fas fa-language text-green-500 mt-1 mr-2"></i>
+                            <span>选择会议语言（中文或英文）</span>
+                        </div>
+                        <div class="flex items-start">
+                            <i class="fas fa-robot text-purple-500 mt-1 mr-2"></i>
+                            <span>AI自动解析、摘要生成、待办提取</span>
+                        </div>
+                        <div class="flex items-start">
+                            <i class="fas fa-download text-yellow-500 mt-1 mr-2"></i>
+                            <span>支持JSON、Markdown、HTML格式导出</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 统计信息 -->
+                <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl card-shadow p-6 text-white">
+                    <h3 class="text-lg font-bold mb-4">统计信息</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100">处理次数</span>
+                            <span class="font-bold" id="processCount">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100">待办总数</span>
+                            <span class="font-bold" id="todoCount">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100">提取时间点</span>
+                            <span class="font-bold" id="timepointCount">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript代码 -->
+    <script>
+        // 全局变量
+        let currentFile = null;
+        let currentLanguage = 'zh';
+        let processingResult = null;
+        let meetingMinutesId = null;
+        
+        // 初始化
+        $(document).ready(function() {
+            setLanguage('zh');
+            loadHistory();
+        });
+        
+        // 设置语言
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            
+            // 更新按钮状态
+            $('.language-btn').removeClass('ring-2 ring-offset-2');
+            $(`.language-btn:contains(${lang === 'zh' ? '中文' : '英文'})`)
+                .addClass('ring-2 ring-offset-2 ring-blue-500');
+        }
+        
+        // 文件选择处理
+        $('#fileInput').on('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            currentFile = file;
+            processFile(file);
+        });
+        
+        // 处理文件
+        function processFile(file) {
+            // 显示处理进度
+            $('#processingArea').removeClass('hidden');
+            updateProcessingProgress('正在上传文件...', 10);
+            
+            // 上传文件
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('file_type', 'text');
+            
+            $.ajax({
+                url: '/upload/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.success) {
+                        updateProcessingProgress('文件上传成功，开始AI分析...', 30);
+                        analyzeMeetingMinutes(response.data.id);
+                    } else {
+                        showError('文件上传失败: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showError('上传错误: ' + (xhr.responseJSON?.message || xhr.statusText));
+                }
+            });
+        }
+        
+        // 分析会议纪要
+        function analyzeMeetingMinutes(fileId) {
+            updateProcessingProgress('正在解析文本内容...', 40);
+            
+            $.ajax({
+                url: '/api/meeting-minutes/process',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    file_id: fileId,
+                    language: currentLanguage
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        updateProcessingProgress('分析完成，正在生成结果...', 80);
+                        
+                        // 保存结果
+                        processingResult = response.data;
+                        meetingMinutesId = response.data.meeting_minutes_id;
+                        
+                        // 显示结果
+                        setTimeout(function() {
+                            updateProcessingProgress('处理完成！', 100);
+                            displayResults(processingResult);
+                            
+                            // 加载更新后的历史记录
+                            setTimeout(function() {
+                                loadHistory();
+                            }, 1000);
+                        }, 1000);
+                    } else {
+                        showError('会议纪要分析失败: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showError('分析错误: ' + (xhr.responseJSON?.message || xhr.statusText));
+                }
+            });
+        }
+        
+        // 显示结果
+        function displayResults(result) {
+            // 显示摘要
+            displaySummary(result.summary);
+            
+            // 显示待办事项
+            displayTodoItems(result.todo_items);
+            
+            // 显示时间线
+            displayTimeline(result.timeline_data, result.chart_config);
+            
+            // 显示导出选项
+            displayExportOptions();
+            
+            // 更新统计信息
+            updateStatistics(result);
+        }
+        
+        // 显示摘要
+        function displaySummary(summaryText) {
+            const summaryHtml = `
+                <div class="prose max-w-none">
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">会议摘要</h3>
+                        <div class="text-gray-700 whitespace-pre-line">${summaryText}</div>
+                    </div>
+                </div>
+            `;
+            $('#summaryContent').html(summaryHtml);
+        }
+        
+        // 显示待办事项
+        function displayTodoItems(todoItems) {
+            if (!todoItems || todoItems.length === 0) {
+                $('#todosContent').html(`
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-check-circle text-3xl mb-3"></i>
+                        <p>本次会议未识别到待办事项</p>
+                    </div>
+                `);
+                return;
+            }
+            
+            let todosHtml = `
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-800">待办事项 (${todoItems.length}项)</h3>
+                        <button onclick="exportTodoItems('${meetingMinutesId}')" class="btn-secondary text-sm px-3 py-1">
+                            <i class="fas fa-download mr-1"></i>导出
+                        </button>
+                    </div>
+            `;
+            
+            todoItems.forEach((item, index) => {
+                const priorityClass = getPriorityClass(item.priority);
+                const priorityText = getPriorityText(item.priority);
+                const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString('zh-CN') : '未设定';
+                
+                todosHtml += `
+                    <div class="border border-gray-200 rounded-lg p-4 mb-3 hover:bg-gray-50 transition">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center">
+                                <span class="${priorityClass} mr-2">${priorityText}</span>
+                                <span class="font-medium text-gray-800">${item.description}</span>
+                            </div>
+                            <button onclick="markTodoComplete(${index})" class="text-blue-600 hover:text-blue-800 text-sm">
+                                <i class="fas fa-check mr-1"></i>标记完成
+                            </button>
+                        </div>
+                        <div class="text-sm text-gray-600 flex flex-wrap gap-4">
+                            ${item.assignee ? `<div><i class="fas fa-user mr-1"></i>责任人: ${item.assignee}</div>` : ''}
+                            ${item.due_date ? `<div><i class="fas fa-calendar-alt mr-1"></i>截止日期: ${dueDate}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            todosHtml += '</div>';
+            $('#todosContent').html(todosHtml);
+        }
+        
+        // 显示时间线
+        function displayTimeline(timelineData, chartConfig) {
+            if (!timelineData || timelineData.length === 0) {
+                $('#timelineContent').html(`
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-clock text-3xl mb-3"></i>
+                        <p>本次会议未识别到时间点</p>
+                    </div>
+                `);
+                return;
+            }
+            
+            // 创建时间线图表
+            const timelineHtml = `
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">会议时间线 (${timelineData.length}个事件)</h3>
+                        <button onclick="exportTimeline('${meetingMinutesId}')" class="btn-secondary text-sm px-3 py-1">
+                            <i class="fas fa-download mr-1"></i>导出
+                        </button>
+                    </div>
+                    
+                    <!-- 时间线图表容器 -->
+                    <div id="timelineChart" style="width: 100%; height: 300px; margin-bottom: 20px;"></div>
+                    
+                    <!-- 时间线列表 -->
+                    <div class="space-y-3">
+                        ${timelineData.map((item, index) => `
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition">
+                                <div class="flex items-center mb-1">
+                                    <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded mr-2">${item.time}</span>
+                                    <span class="font-medium text-gray-800">${item.event}</span>
+                                </div>
+                                <div class="text-sm text-gray-600">${item.description.substring(0, 100)}...</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            $('#timelineContent').html(timelineHtml);
+            
+            // 渲染图表
+            setTimeout(function() {
+                renderTimelineChart(timelineData, chartConfig);
+            }, 100);
+        }
+        
+        // 显示导出选项
+        function displayExportOptions() {
+            const exportHtml = `
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">导出选项</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <button onclick="exportAsJson('${meetingMinutesId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-800 py-4 rounded-lg transition flex flex-col items-center">
+                            <i class="fas fa-file-code text-2xl mb-2 text-green-600"></i>
+                            <span class="font-medium">JSON格式</span>
+                            <span class="text-sm text-gray-600 mt-1">结构化数据</span>
+                        </button>
+                        <button onclick="exportAsMarkdown('${meetingMinutesId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-800 py-4 rounded-lg transition flex flex-col items-center">
+                            <i class="fas fa-file-alt text-2xl mb-2 text-blue-600"></i>
+                            <span class="font-medium">Markdown格式</span>
+                            <span class="text-sm text-gray-600 mt-1">文档报告</span>
+                        </button>
+                        <button onclick="exportAsHtml('${meetingMinutesId}')" class="bg-gray-100 hover:bg-gray-200 text-gray-800 py-4 rounded-lg transition flex flex-col items-center">
+                            <i class="fas fa-file-html text-2xl mb-2 text-purple-600"></i>
+                            <span class="font-medium">HTML格式</span>
+                            <span class="text-sm text-gray-600 mt-1">网页报告</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 批量导出 -->
+                    <div class="mt-6 pt-6 border-t border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="font-medium text-gray-700">批量导出</h4>
+                                <p class="text-sm text-gray-600">选择格式批量导出所有内容</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <select id="batchExportFormat" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <option value="json">JSON格式</option>
+                                    <option value="markdown">Markdown格式</option>
+                                    <option value="html">HTML格式</option>
+                                </select>
+                                <button onclick="batchExport('${meetingMinutesId}')" class="btn-primary px-4">
+                                    <i class="fas fa-file-export mr-1"></i>导出
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            $('#exportContent').html(exportHtml);
+        }
+        
+        // 渲染时间线图表
+        function renderTimelineChart(timelineData, chartConfig) {
+            const chartDom = document.getElementById('timelineChart');
+            if (!chartDom) return;
+            
+            const myChart = echarts.init(chartDom);
+            
+            // 准备数据
+            const data = timelineData.map((item, index) => ({
+                name: item.event,
+                value: [
+                    index,
+                    item.time,
+                    item.description.substring(0, 100),
+                    item.has_time ? '有具体时间' : '无具体时间'
+                ]
+            }));
+            
+            // 配置项
+            const option = {
+                title: {
+                    text: '会议时间线',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        return `<b>${params.data.name}</b><br/>时间：${params.value[1]}<br/>内容：${params.value[2]}`;
+                    }
+                },
+                xAxis: {
+                    type: 'category',
+                    data: timelineData.map(item => item.time)
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '事件顺序'
+                },
+                series: [{
+                    type: 'scatter',
+                    data: data,
+                    symbolSize: function(val) {
+                        return val[3] === '有具体时间' ? 12 : 8;
+                    },
+                    itemStyle: {
+                        color: function(params) {
+                            return params.dataIndex % 2 === 0 ? '#5470c6' : '#91cc75';
+                        }
+                    }
+                }]
+            };
+            
+            myChart.setOption(option);
+            
+            // 响应窗口大小变化
+            window.addEventListener('resize', function() {
+                myChart.resize();
+            });
+        }
+        
+        // 更新处理进度
+        function updateProcessingProgress(message, percent) {
+            $('#processingStatus').text(message);
+            $('#processingPercent').text(percent + '%');
+            $('#processingBar').css('width', percent + '%');
+        }
+        
+        // 标签页切换
+        function showTab(tabName) {
+            // 隐藏所有标签内容
+            $('.tab-content').addClass('hidden');
+            
+            // 移除所有标签的激活状态
+            $('.summary-tab, .todos-tab, .timeline-tab, .export-tab')
+                .removeClass('border-blue-600 text-blue-600')
+                .addClass('border-transparent text-gray-500');
+            
+            // 显示选中的标签内容
+            $('#' + tabName + 'Content').removeClass('hidden');
+            
+            // 激活选中的标签
+            $('#tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1))
+                .removeClass('border-transparent text-gray-500')
+                .addClass('border-blue-600 text-blue-600');
+        }
+        
+        // 加载历史记录
+        function loadHistory() {
+            $.ajax({
+                url: '/api/meeting-minutes/list',
+                type: 'GET',
+                success: function(response) {
+                    if (response.success && response.data.length > 0) {
+                        displayHistoryList(response.data);
+                    } else {
+                        $('#historyList').html(`
+                            <div class="text-center py-4 text-gray-500">
+                                <i class="fas fa-history text-xl mb-2"></i>
+                                <p class="text-sm">暂无历史记录</p>
+                            </div>
+                        `);
+                    }
+                },
+                error: function() {
+                    console.error('加载历史记录失败');
+                }
+            });
+        }
+        
+        // 显示历史记录列表
+        function displayHistoryList(items) {
+            let historyHtml = '';
+            
+            // 只显示最近的5条记录
+            const recentItems = items.slice(0, 5);
+            
+            recentItems.forEach(item => {
+                const statusColor = item.processing_status === 'completed' ? 'text-green-600' : 
+                                 item.processing_status === 'processing' ? 'text-yellow-600' : 
+                                 'text-red-600';
+                const statusIcon = item.processing_status === 'completed' ? 'fa-check-circle' : 
+                                 item.processing_status === 'processing' ? 'fa-spinner fa-spin' : 
+                                 'fa-exclamation-circle';
+                const time = new Date(item.created_at).toLocaleString('zh-CN');
+                
+                historyHtml += `
+                    <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition cursor-pointer" onclick="loadHistoryItem(${item.id})">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-medium text-gray-800 truncate">${item.title}</span>
+                            <i class="fas ${statusIcon} ${statusColor}"></i>
+                        </div>
+                        <div class="text-xs text-gray-600 flex justify-between">
+                            <span>${time}</span>
+                            <span>${item.language === 'zh' ? '中文' : '英文'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            $('#historyList').html(historyHtml);
+        }
+        
+        // 加载历史记录项
+        function loadHistoryItem(minutesId) {
+            $.ajax({
+                url: '/api/meeting-minutes/' + minutesId,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        // 显示摘要
+                        displaySummary(response.data.summary);
+                        
+                        // 显示待办事项
+                        displayTodoItems(response.data.todo_items);
+                        
+                        // 显示时间线
+                        displayTimeline(response.data.timeline_data, {});
+                        
+                        // 切换到摘要标签
+                        showTab('summary');
+                        
+                        // 显示成功消息
+                        showSuccess('历史记录加载成功');
+                    } else {
+                        showError('加载历史记录失败: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showError('加载错误: ' + (xhr.responseJSON?.message || xhr.statusText));
+                }
+            });
+        }
+        
+        // 导出相关函数
+        function exportAsJson(minutesId) {
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=json', '_blank');
+        }
+        
+        function exportAsMarkdown(minutesId) {
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=markdown', '_blank');
+        }
+        
+        function exportAsHtml(minutesId) {
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=html', '_blank');
+        }
+        
+        function exportTodoItems(minutesId) {
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=json', '_blank');
+        }
+        
+        function exportTimeline(minutesId) {
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=html', '_blank');
+        }
+        
+        function batchExport(minutesId) {
+            const format = $('#batchExportFormat').val();
+            window.open('/api/meeting-minutes/' + minutesId + '/export?format=' + format, '_blank');
+        }
+        
+        // 更新统计信息
+        function updateStatistics(result) {
+            // 更新处理次数
+            const currentCount = parseInt($('#processCount').text());
+            $('#processCount').text(currentCount + 1);
+            
+            // 更新待办总数
+            const todoCount = result.todo_items ? result.todo_items.length : 0;
+            $('#todoCount').text(todoCount);
+            
+            // 更新时间点总数
+            const timepointCount = result.timeline_data ? result.timeline_data.length : 0;
+            $('#timepointCount').text(timepointCount);
+        }
+        
+        // 待办事项标记完成
+        function markTodoComplete(index) {
+            const priorityColors = ['text-green-600', 'text-yellow-600', 'text-red-600'];
+            const priorityIcons = ['fa-check-circle', 'fa-hourglass-half', 'fa-exclamation-circle'];
+            
+            const todoItem = $(`#todosContent .border.border-gray-200`).eq(index);
+            
+            // 更新样式为已完成
+            todoItem.css('opacity', '0.7');
+            todoItem.find('.fa-check').closest('button').remove();
+            todoItem.find('.priority-high, .priority-medium, .priority-low')
+                .removeClass('priority-high priority-medium priority-low')
+                .addClass('bg-green-100 text-green-800')
+                .html('<i class="fas fa-check mr-1"></i>已完成');
+            
+            showSuccess('待办事项已标记为完成');
+        }
+        
+        // 获取优先级样式
+        function getPriorityClass(priority) {
+            switch(priority) {
+                case 3: return 'priority-high';
+                case 2: return 'priority-medium';
+                case 1: return 'priority-low';
+                default: return 'priority-medium';
+            }
+        }
+        
+        function getPriorityText(priority) {
+            switch(priority) {
+                case 3: return '高优先级';
+                case 2: return '中优先级';
+                case 1: return '低优先级';
+                default: return '中优先级';
+            }
+        }
+        
+        // 显示成功消息
+        function showSuccess(message) {
+            alert('成功: ' + message);
+        }
+        
+        // 显示错误消息
+        function showError(message) {
+            alert('错误: ' + message);
+        }
+        
+        // 退出登录
+        function logout() {
+            window.location.href = '/auth/logout';
+        }
+        
+        // 拖放功能
+        $(document).ready(function() {
+            const uploadArea = document.getElementById('uploadArea');
+            
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('border-blue-400', 'bg-blue-50');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('border-blue-400', 'bg-blue-50');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('border-blue-400', 'bg-blue-50');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    currentFile = files[0];
+                    processFile(currentFile);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

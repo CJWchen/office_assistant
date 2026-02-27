@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 智能办公文档处理助手{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- 英雄区域 -->
+    <div class="text-center mb-16">
+        <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-6">
+            AI赋能办公自动化
+            <span class="text-blue-600">提升效率10倍</span>
+        </h1>
+        <p class="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            基于DeepSeek API的智能办公文档处理助手，提供Excel智能处理、PPT自动生成、会议纪要摘要等AI办公工具。
+        </p>
+        
+        <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.dashboard') }}" class="btn-primary text-lg px-8 py-3">
+                    <i class="fas fa-tachometer-alt mr-2"></i>进入工作台
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="btn-secondary text-lg px-8 py-3">
+                    <i class="fas fa-sign-out-alt mr-2"></i>退出登录
+                </a>
+            {% else %}
+                <a href="{{ url_for('auth.register') }}" class="btn-primary text-lg px-8 py-3">
+                    <i class="fas fa-user-plus mr-2"></i>免费注册
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="btn-secondary text-lg px-8 py-3">
+                    <i class="fas fa-sign-in-alt mr-2"></i>已有账号登录
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- 功能特性 -->
+    <div class="mb-16">
+        <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">核心功能</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Excel智能处理 -->
+            <div class="bg-white rounded-xl card-shadow p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-center mb-4">
+                    <div class="bg-green-100 p-3 rounded-lg mr-4">
+                        <i class="fas fa-file-excel text-green-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">Excel智能处理</h3>
+                </div>
+                <p class="text-gray-600 mb-4">
+                    自动清洗Excel数据，AI分析数据趋势，生成可视化图表和智能报告。
+                </p>
+                <ul class="text-gray-600 space-y-2">
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>数据清洗与格式化</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>趋势分析与预测</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>图表自动生成</li>
+                </ul>
+            </div>
+            
+            <!-- PPT自动生成 -->
+            <div class="bg-white rounded-xl card-shadow p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-center mb-4">
+                    <div class="bg-blue-100 p-3 rounded-lg mr-4">
+                        <i class="fas fa-file-powerpoint text-blue-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">PPT自动生成</h3>
+                </div>
+                <p class="text-gray-600 mb-4">
+                    基于内容自动生成精美PPT，智能匹配模板，一键导出演示文稿。
+                </p>
+                <ul class="text-gray-600 space-y-2">
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>智能内容结构化</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>模板自动匹配</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>一键导出PPTX</li>
+                </ul>
+            </div>
+            
+            <!-- 会议纪要助手 -->
+            <div class="bg-white rounded-xl card-shadow p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-center mb-4">
+                    <div class="bg-purple-100 p-3 rounded-lg mr-4">
+                        <i class="fas fa-comments text-purple-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">会议纪要助手</h3>
+                </div>
+                <p class="text-gray-600 mb-4">
+                    自动分析会议录音/文字，提取关键信息、待办事项和时间线。
+                </p>
+                <ul class="text-gray-600 space-y-2">
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>语音转文字处理</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>关键信息提取</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>待办事项生成</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 技术栈 -->
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 mb-16">
+        <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">技术架构</h2>
+        <div class="flex flex-wrap justify-center items-center gap-8">
+            <div class="text-center">
+                <div class="bg-white p-4 rounded-full shadow-md mb-2">
+                    <i class="fab fa-python text-blue-500 text-3xl"></i>
+                </div>
+                <p class="font-medium">Python Flask</p>
+            </div>
+            <div class="text-center">
+                <div class="bg-white p-4 rounded-full shadow-md mb-2">
+                    <i class="fas fa-database text-green-500 text-3xl"></i>
+                </div>
+                <p class="font-medium">SQLite</p>
+            </div>
+            <div class="text-center">
+                <div class="bg-white p-4 rounded-full shadow-md mb-2">
+                    <i class="fas fa-brain text-purple-500 text-3xl"></i>
+                </div>
+                <p class="font-medium">DeepSeek API</p>
+            </div>
+            <div class="text-center">
+                <div class="bg-white p-4 rounded-full shadow-md mb-2">
+                    <i class="fab fa-js-square text-yellow-500 text-3xl"></i>
+                </div>
+                <p class="font-medium">JavaScript</p>
+            </div>
+            <div class="text-center">
+                <div class="bg-white p-4 rounded-full shadow-md mb-2">
+                    <i class="fab fa-css3-alt text-pink-500 text-3xl"></i>
+                </div>
+                <p class="font-medium">Tailwind CSS</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- CTA -->
+    <div class="text-center">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6">立即体验AI办公自动化</h2>
+        <p class="text-gray-600 mb-8 max-w-2xl mx-auto">
+            免费注册即可使用所有基础功能，无需安装任何软件，全平台Web访问。
+        </p>
+        <a href="{{ url_for('auth.register') }}" class="btn-primary text-lg px-10 py-4 inline-block">
+            <i class="fas fa-rocket mr-2"></i>立即开始
+        </a>
+    </div>
+</div>
+{% endblock %}

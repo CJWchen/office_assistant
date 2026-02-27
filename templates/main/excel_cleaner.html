@@ -1,0 +1,882 @@
+{% extends "base.html" %}
+
+{% block title %}Excel数据清洗 - 智能办公文档处理助手{% endblock %}
+
+{% block head_extra %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.css" rel="stylesheet">
+<style>
+    .card-shadow {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #374151;
+    }
+    .chart-container {
+        height: 400px;
+        width: 100%;
+    }
+    .data-table {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.8);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .file-action-btn {
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- 标题和返回按钮 -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Excel数据清洗与分析</h1>
+                <p class="text-gray-600 mt-1">AI智能清洗、质量分析、可视化展示与多格式导出</p>
+            </div>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left mr-2"></i>返回仪表板
+            </a>
+        </div>
+        
+        <!-- 当前文件信息 -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6" id="fileInfoSection" style="display: none;">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <i class="fas fa-file-excel text-green-600 text-2xl mr-3"></i>
+                    <div>
+                        <h3 class="font-medium text-gray-800" id="fileName">未选择文件</h3>
+                        <p class="text-sm text-gray-600" id="fileDetails">请从下方列表中选择一个文件进行处理</p>
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button class="btn btn-secondary" onclick="previewData()">
+                        <i class="fas fa-eye mr-2"></i>预览数据
+                    </button>
+                    <button class="btn btn-primary" onclick="analyzeData()">
+                        <i class="fas fa-robot mr-2"></i>AI分析
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- 左侧：文件列表和清洗选项 -->
+        <div class="lg:col-span-1">
+            <!-- 文件选择卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6 mb-6">
+                <h2 class="section-title">选择Excel文件</h2>
+                <div class="mb-4">
+                    <div class="text-sm text-gray-600 mb-2">从最近上传的文件中选择：</div>
+                    <div id="fileList" class="space-y-2">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-folder-open text-3xl mb-3"></i>
+                            <p>加载中...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">或上传新文件：</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        <input type="file" id="newFileUpload" accept=".xlsx,.xls,.csv" class="hidden">
+                        <button onclick="$('#newFileUpload').click()" class="btn btn-outline-primary w-full">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>上传Excel文件
+                        </button>
+                        <p class="text-xs text-gray-500 mt-2">支持 .xlsx, .xls, .csv 格式，最大50MB</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 清洗选项卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6">
+                <h2 class="section-title">清洗选项配置</h2>
+                
+                <div class="space-y-4">
+                    <!-- 缺失值处理 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">缺失值处理策略</label>
+                        <select id="missingStrategy" class="form-select w-full">
+                            <option value="drop">删除包含缺失值的行</option>
+                            <option value="mean">数值列用均值填充</option>
+                            <option value="median">数值列用中位数填充</option>
+                            <option value="custom">自定义填充值</option>
+                        </select>
+                        <div id="customFillSection" class="mt-2 hidden">
+                            <label class="block text-sm text-gray-600 mb-1">自定义填充值（JSON格式）：</label>
+                            <textarea id="customFillValues" class="form-control text-sm" rows="3" placeholder='{"列名": "填充值", "年龄": 0}'></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- 重复值处理 -->
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="removeDuplicates" class="mr-2" checked>
+                            <label class="text-sm font-medium text-gray-700">删除重复行</label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">删除所有列值完全相同的重复行</p>
+                    </div>
+                    
+                    <!-- 异常值处理 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">异常值处理</label>
+                        <select id="outlierStrategy" class="form-select w-full">
+                            <option value="">不处理异常值</option>
+                            <option value="cap">使用分位数缩尾法处理</option>
+                            <option value="remove">删除异常值行</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 数据类型转换 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">数据类型转换</label>
+                        <textarea id="typeConversions" class="form-control text-sm" rows="3" placeholder='{"列名": "目标类型", "日期列": "datetime", "数值列": "numeric"}'></textarea>
+                        <p class="text-xs text-gray-500 mt-1">支持的类型：numeric（数值）, datetime（日期）, category（分类）</p>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="pt-4">
+                        <button class="btn btn-primary w-full mb-3" onclick="cleanData()">
+                            <i class="fas fa-broom mr-2"></i>开始数据清洗
+                        </button>
+                        
+                        <div class="flex flex-wrap gap-2">
+                            <button class="btn btn-success flex-1" onclick="exportData('csv')">
+                                <i class="fas fa-file-csv mr-1"></i>CSV
+                            </button>
+                            <button class="btn btn-success flex-1" onclick="exportData('excel')">
+                                <i class="fas fa-file-excel mr-1"></i>Excel
+                            </button>
+                            <button class="btn btn-success flex-1" onclick="exportData('json')">
+                                <i class="fas fa-file-code mr-1"></i>JSON
+                            </button>
+                            <button class="btn btn-success flex-1" onclick="exportData('html')">
+                                <i class="fas fa-file-alt mr-1"></i>HTML
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧：分析结果和可视化 -->
+        <div class="lg:col-span-2">
+            <!-- 数据预览卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="section-title">数据预览</h2>
+                    <div class="text-sm text-gray-500">
+                        <span id="dataStats">未加载数据</span>
+                    </div>
+                </div>
+                
+                <div class="data-table">
+                    <table class="table table-bordered table-hover" id="previewTable">
+                        <thead id="previewTableHeader">
+                            <tr>
+                                <th colspan="5" class="text-center">请先选择文件并预览数据</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4 flex justify-between items-center">
+                    <div class="text-sm text-gray-600">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        <span id="previewInfo">显示前10行数据</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="downloadFullData()">
+                        <i class="fas fa-download mr-1"></i>下载完整数据
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AI分析报告卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6 mb-6">
+                <h2 class="section-title">AI智能分析报告</h2>
+                
+                <div id="aiAnalysisContent">
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-robot text-3xl mb-3"></i>
+                        <p>AI分析报告区域</p>
+                        <p class="text-sm mt-2">点击"AI分析"按钮生成数据质量分析报告</p>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <div class="flex items-center mb-3">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="qualityRatingBar" class="bg-green-600 h-2.5 rounded-full" style="width: 60%"></div>
+                        </div>
+                        <span class="ml-3 text-sm font-medium text-gray-700">
+                            数据质量: <span id="qualityScore">--</span>/5星
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <div class="text-xs text-blue-600 mb-1">主要问题</div>
+                            <ul class="text-sm text-gray-700" id="keyIssuesList">
+                                <li>暂无数据</li>
+                            </ul>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded-lg">
+                            <div class="text-xs text-green-600 mb-1">改进建议</div>
+                            <ul class="text-sm text-gray-700" id="recommendationsList">
+                                <li>暂无数据</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 可视化图表卡片 -->
+            <div class="bg-white rounded-2xl card-shadow p-6">
+                <h2 class="section-title">数据分布可视化</h2>
+                
+                <div class="mb-4">
+                    <div class="flex space-x-2 mb-3">
+                        <button class="btn btn-sm btn-outline-primary active" data-chart="histogram">
+                            <i class="fas fa-chart-bar mr-1"></i>直方图
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" data-chart="boxplot">
+                            <i class="fas fa-chart-area mr-1"></i>箱线图
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" data-chart="pie">
+                            <i class="fas fa-chart-pie mr-1"></i>饼图
+                        </button>
+                    </div>
+                    
+                    <select id="chartColumnSelect" class="form-select mb-4">
+                        <option value="">请先加载数据</option>
+                    </select>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="chartContainer" style="height: 100%; width: 100%;">
+                        <div class="text-center py-16 text-gray-500">
+                            <i class="fas fa-chart-line text-3xl mb-3"></i>
+                            <p>图表展示区域</p>
+                            <p class="text-sm mt-2">选择数据列和图表类型生成可视化图表</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载覆盖层 -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="text-center">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <p class="mt-3 text-gray-600" id="loadingMessage">正在处理中，请稍候...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>
+    // 全局变量
+    let currentFileId = null;
+    let currentData = null;
+    let currentCleanedData = null;
+    let currentAIReport = null;
+    let currentChart = null;
+    
+    // 页面加载时获取文件列表
+    $(document).ready(function() {
+        loadFileList();
+        
+        // 监听缺失值策略变化
+        $('#missingStrategy').change(function() {
+            if ($(this).val() === 'custom') {
+                $('#customFillSection').removeClass('hidden');
+            } else {
+                $('#customFillSection').addClass('hidden');
+            }
+        });
+        
+        // 监听文件上传
+        $('#newFileUpload').change(function(e) {
+            if (e.target.files.length > 0) {
+                uploadNewFile(e.target.files[0]);
+            }
+        });
+        
+        // 图表类型切换
+        $('[data-chart]').click(function() {
+            $('[data-chart]').removeClass('active');
+            $(this).addClass('active');
+            if (currentData && $('#chartColumnSelect').val()) {
+                generateChart();
+            }
+        });
+    });
+    
+    // 加载文件列表
+    function loadFileList() {
+        $.ajax({
+            url: '/api/user/uploads',
+            type: 'GET',
+            success: function(response) {
+                if (response.success && response.data.length > 0) {
+                    displayFileList(response.data);
+                } else {
+                    $('#fileList').html(`
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-folder-open text-3xl mb-3"></i>
+                            <p>暂无Excel文件</p>
+                            <p class="text-sm mt-2">请上传Excel文件进行处理</p>
+                        </div>
+                    `);
+                }
+            },
+            error: function() {
+                showAlert('文件列表加载失败', 'danger');
+            }
+        });
+    }
+    
+    // 显示文件列表
+    function displayFileList(files) {
+        let html = '';
+        
+        files.forEach(file => {
+            if (file.file_type === 'excel') {
+                const fileSize = formatFileSize(file.file_size);
+                const uploadTime = new Date(file.uploaded_at).toLocaleString('zh-CN');
+                
+                html += `
+                <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition cursor-pointer file-item" data-file-id="${file.id}">
+                    <div class="flex items-center">
+                        <div class="bg-green-100 p-2 rounded-lg mr-3">
+                            <i class="fas fa-file-excel text-green-600"></i>
+                        </div>
+                        <div class="flex-grow">
+                            <div class="font-medium text-gray-800 truncate">${file.original_filename}</div>
+                            <div class="text-xs text-gray-500 flex justify-between mt-1">
+                                <span>${fileSize}</span>
+                                <span>${uploadTime}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        });
+        
+        $('#fileList').html(html || `
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-folder-open text-3xl mb-3"></i>
+                <p>暂无Excel文件</p>
+                <p class="text-sm mt-2">请上传Excel文件进行处理</p>
+            </div>
+        `);
+        
+        // 绑定点击事件
+        $('.file-item').click(function() {
+            $('.file-item').removeClass('border-blue-500 bg-blue-50');
+            $(this).addClass('border-blue-500 bg-blue-50');
+            
+            const fileId = $(this).data('file-id');
+            const fileName = $(this).find('.text-gray-800').text();
+            
+            selectFile(fileId, fileName);
+        });
+    }
+    
+    // 选择文件
+    function selectFile(fileId, fileName) {
+        currentFileId = fileId;
+        
+        // 更新文件信息显示
+        $('#fileName').text(fileName);
+        $('#fileDetails').text(`文件ID: ${fileId}`);
+        $('#fileInfoSection').show();
+        
+        showAlert(`已选择文件: ${fileName}`, 'info');
+    }
+    
+    // 预览数据
+    function previewData() {
+        if (!currentFileId) {
+            showAlert('请先选择文件', 'warning');
+            return;
+        }
+        
+        showLoading('正在加载数据预览...');
+        
+        $.ajax({
+            url: `/api/excel/preview/${currentFileId}`,
+            type: 'GET',
+            success: function(response) {
+                hideLoading();
+                
+                if (response.success) {
+                    currentData = response.data;
+                    displayPreviewTable(response.data, response.stats);
+                } else {
+                    showAlert('数据预览失败: ' + response.message, 'danger');
+                }
+            },
+            error: function() {
+                hideLoading();
+                showAlert('数据预览请求失败', 'danger');
+            }
+        });
+    }
+    
+    // 显示预览表格
+    function displayPreviewTable(data, stats) {
+        if (!data || data.length === 0) {
+            $('#previewTableHeader').html('<tr><th colspan="5" class="text-center">无数据</th></tr>');
+            $('#previewTableBody').empty();
+            return;
+        }
+        
+        // 获取列名
+        const columns = Object.keys(data[0]);
+        
+        // 构建表头
+        let headerHtml = '<tr>';
+        columns.forEach(col => {
+            headerHtml += `<th>${col}</th>`;
+        });
+        headerHtml += '</tr>';
+        $('#previewTableHeader').html(headerHtml);
+        
+        // 构建表格内容
+        let bodyHtml = '';
+        data.forEach(row => {
+            bodyHtml += '<tr>';
+            columns.forEach(col => {
+                const value = row[col];
+                bodyHtml += `<td>${value === null ? '<span class="text-gray-400">空</span>' : value}</td>`;
+            });
+            bodyHtml += '</tr>';
+        });
+        $('#previewTableBody').html(bodyHtml);
+        
+        // 更新统计信息
+        $('#dataStats').html(`${stats.row_count}行 × ${stats.column_count}列 | 缺失值: ${stats.missing_values_total}`);
+        $('#previewInfo').html(`显示前${Math.min(10, data.length)}行数据`);
+        
+        // 更新图表列选择
+        updateChartColumnSelect(columns);
+    }
+    
+    // 更新图表列选择
+    function updateChartColumnSelect(columns) {
+        let html = '<option value="">选择数据列...</option>';
+        columns.forEach(col => {
+            html += `<option value="${col}">${col}</option>`;
+        });
+        $('#chartColumnSelect').html(html);
+        
+        // 绑定变化事件
+        $('#chartColumnSelect').off('change').change(function() {
+            if ($(this).val()) {
+                generateChart();
+            }
+        });
+    }
+    
+    // AI分析
+    function analyzeData() {
+        if (!currentFileId) {
+            showAlert('请先选择文件', 'warning');
+            return;
+        }
+        
+        showLoading('AI正在分析数据质量...');
+        
+        $.ajax({
+            url: `/api/excel/ai-analyze/${currentFileId}`,
+            type: 'GET',
+            success: function(response) {
+                hideLoading();
+                
+                if (response.success) {
+                    currentAIReport = response.ai_analysis;
+                    displayAIAnalysis(response.ai_analysis);
+                } else {
+                    showAlert('AI分析失败: ' + response.message, 'danger');
+                }
+            },
+            error: function() {
+                hideLoading();
+                showAlert('AI分析请求失败', 'danger');
+            }
+        });
+    }
+    
+    // 显示AI分析
+    function displayAIAnalysis(aiReport) {
+        // 更新AI分析内容
+        $('#aiAnalysisContent').html(`
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <pre class="text-sm whitespace-pre-wrap">${aiReport.ai_analysis}</pre>
+            </div>
+        `);
+        
+        // 更新质量评分
+        const rating = aiReport.quality_rating || 3;
+        const ratingPercent = (rating / 5) * 100;
+        $('#qualityRatingBar').css('width', `${ratingPercent}%`);
+        $('#qualityScore').text(rating);
+        
+        // 更新关键问题
+        const issuesHtml = aiReport.key_issues && aiReport.key_issues.length > 0
+            ? aiReport.key_issues.map(issue => `<li>${issue}</li>`).join('')
+            : '<li>无明显严重问题</li>';
+        $('#keyIssuesList').html(issuesHtml);
+        
+        // 更新建议
+        const recsHtml = aiReport.recommendations && aiReport.recommendations.length > 0
+            ? aiReport.recommendations.map(rec => `<li>${rec}</li>`).join('')
+            : '<li>请按需进行数据清洗</li>';
+        $('#recommendationsList').html(recsHtml);
+    }
+    
+    // 数据清洗
+    function cleanData() {
+        if (!currentFileId) {
+            showAlert('请先选择文件', 'warning');
+            return;
+        }
+        
+        // 收集清洗选项
+        const options = {
+            missing_strategy: $('#missingStrategy').val(),
+            remove_duplicates: $('#removeDuplicates').is(':checked'),
+            outlier_strategy: $('#outlierStrategy').val() || null
+        };
+        
+        // 自定义填充值
+        if (options.missing_strategy === 'custom') {
+            try {
+                options.fill_values = JSON.parse($('#customFillValues').val());
+            } catch (e) {
+                showAlert('自定义填充值格式错误，必须是有效的JSON', 'danger');
+                return;
+            }
+        }
+        
+        // 数据类型转换
+        const typeConversions = $('#typeConversions').val();
+        if (typeConversions.trim()) {
+            try {
+                options.type_conversions = JSON.parse(typeConversions);
+            } catch (e) {
+                showAlert('数据类型转换格式错误，必须是有效的JSON', 'danger');
+                return;
+            }
+        }
+        
+        showLoading('正在清洗数据...');
+        
+        $.ajax({
+            url: `/api/excel/clean/${currentFileId}`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(options),
+            success: function(response) {
+                hideLoading();
+                
+                if (response.success) {
+                    currentCleanedData = response.data;
+                    displayPreviewTable(response.data, response.stats);
+                    
+                    // 显示清洗报告
+                    const report = response.cleaning_report;
+                    const summary = report.cleaning_summary;
+                    
+                    let reportHtml = `
+                    <div class="alert alert-success">
+                        <h5 class="font-bold mb-2">✅ 数据清洗完成</h5>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div><span class="font-medium">原始数据:</span> ${summary['原始数据行数']}行 × ${summary['原始数据列数']}列</div>
+                            <div><span class="font-medium">清洗后数据:</span> ${summary['清洗后行数']}行 × ${summary['清洗后列数']}列</div>
+                            <div><span class="font-medium">删除行数:</span> ${summary['总删除行数']}行</div>
+                            <div><span class="font-medium">填充缺失值:</span> ${summary['填充缺失值数']}个</div>
+                        </div>
+                    </div>
+                    `;
+                    
+                    if (report.applied_operations.length > 0) {
+                        reportHtml += `
+                        <div class="mt-3">
+                            <h6 class="font-medium mb-2">应用的操作:</h6>
+                            <ul class="list-disc list-inside text-sm text-gray-700">
+                                ${report.applied_operations.map(op => `<li>${op}</li>`).join('')}
+                            </ul>
+                        </div>
+                        `;
+                    }
+                    
+                    showAlert(reportHtml, 'success');
+                    
+                } else {
+                    showAlert('数据清洗失败: ' + response.message, 'danger');
+                }
+            },
+            error: function() {
+                hideLoading();
+                showAlert('数据清洗请求失败', 'danger');
+            }
+        });
+    }
+    
+    // 导出数据
+    function exportData(format) {
+        if (!currentFileId) {
+            showAlert('请先选择文件', 'warning');
+            return;
+        }
+        
+        showLoading(`正在导出${format.toUpperCase()}格式数据...`);
+        
+        const url = `/api/excel/export/${currentFileId}?format=${format}`;
+        
+        // 使用新窗口打开下载
+        const downloadWindow = window.open(url, '_blank');
+        
+        // 检查下载是否开始
+        setTimeout(function() {
+            hideLoading();
+            if (downloadWindow && !downloadWindow.closed) {
+                downloadWindow.close();
+                showAlert('数据导出成功！', 'success');
+            } else {
+                showAlert('数据导出已开始，请检查下载文件夹', 'info');
+            }
+        }, 2000);
+    }
+    
+    // 生成图表
+    function generateChart() {
+        const column = $('#chartColumnSelect').val();
+        const chartType = $('[data-chart].active').data('chart');
+        
+        if (!column || !currentData) {
+            return;
+        }
+        
+        // 提取列数据
+        const columnData = currentData.map(row => row[column]);
+        
+        // 初始化ECharts实例
+        const chartDom = document.getElementById('chartContainer');
+        if (currentChart) {
+            currentChart.dispose();
+        }
+        currentChart = echarts.init(chartDom);
+        
+        let option = {};
+        
+        switch(chartType) {
+            case 'histogram':
+                option = {
+                    title: {
+                        text: `${column} 数据分布直方图`,
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: Array.from({length: columnData.length}, (_, i) => `行${i+1}`)
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: [{
+                        name: column,
+                        type: 'bar',
+                        data: columnData,
+                        itemStyle: {
+                            color: '#5470c6'
+                        }
+                    }]
+                };
+                break;
+                
+            case 'boxplot':
+                // 计算统计量
+                const sorted = columnData.filter(v => v !== null).sort((a, b) => a - b);
+                const q1 = sorted[Math.floor(sorted.length * 0.25)];
+                const median = sorted[Math.floor(sorted.length * 0.5)];
+                const q3 = sorted[Math.floor(sorted.length * 0.75)];
+                const min = sorted[0];
+                const max = sorted[sorted.length - 1];
+                
+                option = {
+                    title: {
+                        text: `${column} 箱线图`,
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            return `${column}<br/>最小值: ${min}<br/>Q1: ${q1}<br/>中位数: ${median}<br/>Q3: ${q3}<br/>最大值: ${max}`;
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: [column]
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: column
+                    },
+                    series: [{
+                        name: column,
+                        type: 'boxplot',
+                        data: [[min, q1, median, q3, max]],
+                        itemStyle: {
+                            color: '#91cc75',
+                            borderColor: '#5470c6'
+                        }
+                    }]
+                };
+                break;
+                
+            case 'pie':
+                // 计算分类频率
+                const freq = {};
+                columnData.forEach(value => {
+                    if (value !== null) {
+                        freq[value] = (freq[value] || 0) + 1;
+                    }
+                });
+                
+                const pieData = Object.entries(freq).map(([name, value]) => ({name, value}));
+                
+                option = {
+                    title: {
+                        text: `${column} 分类分布饼图`,
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left',
+                        top: 'center'
+                    },
+                    series: [{
+                        name: column,
+                        type: 'pie',
+                        radius: '70%',
+                        data: pieData,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
+                };
+                break;
+        }
+        
+        currentChart.setOption(option);
+        
+        // 响应式调整
+        window.addEventListener('resize', function() {
+            currentChart.resize();
+        });
+    }
+    
+    // 工具函数
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function showAlert(message, type = 'info') {
+        // 创建临时提示
+        const alertId = 'alert-' + Date.now();
+        const alertHtml = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" onclick="$('#${alertId}').remove()"></button>
+        </div>
+        `;
+        
+        // 添加到页面顶部
+        $('.max-w-7xl').prepend(alertHtml);
+        
+        // 5秒后自动消失
+        setTimeout(() => {
+            $(`#${alertId}`).remove();
+        }, 5000);
+    }
+    
+    function showLoading(message) {
+        $('#loadingMessage').text(message || '正在处理中，请稍候...');
+        $('#loadingOverlay').show();
+    }
+    
+    function hideLoading() {
+        $('#loadingOverlay').hide();
+    }
+    
+    // 上传新文件（简化版）
+    function uploadNewFile(file) {
+        showLoading('正在上传文件...');
+        
+        // 简化处理：实际应用中应该通过表单上传
+        setTimeout(() => {
+            hideLoading();
+            showAlert('文件上传功能需通过后端API实现，请使用现有的文件', 'info');
+            loadFileList(); // 刷新文件列表
+        }, 1500);
+    }
+    
+    // 下载完整数据
+    function downloadFullData() {
+        if (!currentFileId) {
+            showAlert('请先选择文件', 'warning');
+            return;
+        }
+        
+        exportData('csv');
+    }
+</script>
+{% endblock %}

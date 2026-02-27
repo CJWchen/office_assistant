@@ -1,0 +1,940 @@
+{% extends "base.html" %}
+
+{% block title %}PPT生成器 - 智能办公文档处理助手{% endblock %}
+
+{% block head_extra %}
+<link href="https://unpkg.com/filepond/dist/filepond.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<style>
+    .slide-preview {
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        background-color: #f9fafb;
+        transition: all 0.3s ease;
+    }
+    
+    .slide-preview:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .slide-content-editor {
+        min-height: 200px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 12px;
+        background-color: white;
+    }
+    
+    .template-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .template-card:hover {
+        border-color: #3b82f6;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .template-card.selected {
+        border-color: #3b82f6;
+        background-color: #eff6ff;
+    }
+    
+    .template-thumbnail {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 4px;
+        background-color: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+    }
+    
+    .image-search-result {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+    }
+    
+    .image-search-result:hover {
+        border-color: #3b82f6;
+    }
+    
+    .image-preview {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+    
+    .ai-suggestion {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0ea5e9;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 4px;
+    }
+    
+    .color-scheme-item {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .progress-container {
+        height: 8px;
+        background-color: #e5e7eb;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background-color: #10b981;
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- 头部 -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">智能PPT生成器</h1>
+        <p class="mt-2 text-gray-600">基于AI的内容优化、智能图片匹配和模板系统，快速生成专业演示文稿</p>
+    </div>
+    
+    <!-- 主工作区 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左侧：项目设置 -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">项目设置</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">项目标题</label>
+                        <input type="text" id="projectTitle" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="例如：季度业绩报告">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">项目描述</label>
+                        <textarea id="projectDescription" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="描述PPT的内容和用途"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">PPT模板</label>
+                        <div class="text-sm text-gray-500 mb-2">选择模板或从头开始</div>
+                        
+                        <!-- 模板选择区域 -->
+                        <div id="templateSelection" class="space-y-4">
+                            <div class="text-center py-8 text-gray-400">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                                <p class="mt-2">加载模板中...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="showPublicTemplates" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">显示公开模板</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-4 border-t">
+                        <button id="saveProject" 
+                                class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            保存项目
+                        </button>
+                        <button id="generatePPTX" 
+                                class="w-full mt-3 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                            生成PPTX文件
+                        </button>
+                        <button id="generateHTML" 
+                                class="w-full mt-3 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            生成HTML版本
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI优化面板 -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">AI内容优化</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">优化类型</label>
+                        <select id="optimizationType" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="clarity">清晰度优化</option>
+                            <option value="conciseness">简洁性优化</option>
+                            <option value="engagement">吸引力优化</option>
+                            <option value="professional">专业性优化</option>
+                        </select>
+                    </div>
+                    
+                    <div class="ai-suggestion hidden" id="aiSuggestion">
+                        <div class="font-medium text-gray-800">AI优化建议</div>
+                        <div class="text-sm text-gray-600 mt-1" id="suggestionContent"></div>
+                    </div>
+                    
+                    <button id="optimizeContent" 
+                            class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        优化当前页面内容
+                    </button>
+                    
+                    <button id="matchImages" 
+                            class="w-full mt-3 bg-pink-600 text-white px-4 py-2 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500">
+                        匹配相关图片
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 中间：幻灯片编辑 -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">幻灯片编辑</h2>
+                    <div class="flex space-x-2">
+                        <button id="addSlide" 
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            添加幻灯片
+                        </button>
+                        <button id="deleteSlide" 
+                                class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                            删除当前
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 幻灯片列表 -->
+                <div id="slidesContainer" class="space-y-4">
+                    <!-- 幻灯片将通过JS动态添加 -->
+                    <div class="text-center py-12 text-gray-400">
+                        <p>点击"添加幻灯片"开始创建您的演示文稿</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图片匹配结果 -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">图片匹配</h2>
+                
+                <div class="mb-4">
+                    <input type="text" id="imageKeywords" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                           placeholder="输入关键词搜索图片 (例如: business technology presentation)">
+                    <button id="searchImages" 
+                            class="mt-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">
+                        搜索图片
+                    </button>
+                </div>
+                
+                <div id="imageResults" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <!-- 图片结果将通过JS动态添加 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 模板上传模态框 -->
+<div id="uploadTemplateModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">上传PPT模板</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">模板文件 (.pptx)</label>
+                    <input type="file" id="templateFile" accept=".pptx,.ppt" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">模板名称</label>
+                    <input type="text" id="templateName" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea id="templateDescription" rows="2" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                    <select id="templateCategory" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="商务">商务</option>
+                        <option value="教育">教育</option>
+                        <option value="创意">创意</option>
+                        <option value="科技">科技</option>
+                        <option value="医疗">医疗</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeUploadModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        取消
+                    </button>
+                    <button type="button" onclick="uploadTemplate()"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        上传
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分享链接模态框 -->
+<div id="shareModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">分享PPT</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">分享链接</label>
+                    <div class="flex">
+                        <input type="text" id="shareLink" readonly
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md">
+                        <button onclick="copyShareLink()"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700">
+                            复制
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">有效期</label>
+                    <select id="shareExpires" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="1">1小时</option>
+                        <option value="24" selected>24小时</option>
+                        <option value="72">72小时</option>
+                        <option value="168">7天</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeShareModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    // 全局变量
+    let currentProject = null;
+    let currentSlides = [];
+    let currentSlideIndex = 0;
+    let selectedTemplateId = null;
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTemplates();
+        setupEventListeners();
+    });
+    
+    // 加载模板
+    function loadTemplates() {
+        const showPublic = document.getElementById('showPublicTemplates').checked;
+        
+        fetch(`/api/ppt/templates?public_only=${showPublic}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderTemplates(data.data);
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('加载模板失败:', error);
+                showToast('加载模板失败', 'error');
+            });
+    }
+    
+    // 渲染模板
+    function renderTemplates(templates) {
+        const container = document.getElementById('templateSelection');
+        container.innerHTML = '';
+        
+        // 添加"无模板"选项
+        const noTemplateCard = document.createElement('div');
+        noTemplateCard.className = 'template-card' + (selectedTemplateId === null ? ' selected' : '');
+        noTemplateCard.innerHTML = `
+            <div class="template-thumbnail">
+                <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <h3 class="font-medium text-gray-800 mt-2">从头开始</h3>
+            <p class="text-sm text-gray-500 mt-1">不使用模板，完全自定义</p>
+        `;
+        noTemplateCard.onclick = () => selectTemplate(null);
+        container.appendChild(noTemplateCard);
+        
+        // 添加模板卡片
+        templates.forEach(template => {
+            const card = document.createElement('div');
+            card.className = 'template-card' + (selectedTemplateId === template.id ? ' selected' : '');
+            card.innerHTML = `
+                ${template.thumbnail_url ? 
+                    `<img src="${template.thumbnail_url}" class="template-thumbnail" alt="${template.name}">` :
+                    `<div class="template-thumbnail">
+                        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>`
+                }
+                <h3 class="font-medium text-gray-800 mt-2">${template.name}</h3>
+                <p class="text-sm text-gray-500 mt-1 line-clamp-2">${template.description || '暂无描述'}</p>
+                <div class="mt-2 flex flex-wrap gap-1">
+                    ${template.tags.map(tag => `<span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">${tag}</span>`).join('')}
+                </div>
+            `;
+            card.onclick = () => selectTemplate(template.id);
+            container.appendChild(card);
+        });
+        
+        // 添加上传模板按钮
+        const uploadButton = document.createElement('button');
+        uploadButton.className = 'w-full mt-4 px-4 py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-blue-500 hover:text-blue-600';
+        uploadButton.innerHTML = `
+            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            上传新模板
+        `;
+        uploadButton.onclick = openUploadModal;
+        container.appendChild(uploadButton);
+    }
+    
+    // 选择模板
+    function selectTemplate(templateId) {
+        selectedTemplateId = templateId;
+        loadTemplates();
+    }
+    
+    // 添加幻灯片
+    function addSlide() {
+        const slide = {
+            id: Date.now(),
+            title: `幻灯片 ${currentSlides.length + 1}`,
+            content: '',
+            layout: 'title-content',
+            images: []
+        };
+        
+        currentSlides.push(slide);
+        renderSlides();
+        showSlide(currentSlides.length - 1);
+    }
+    
+    // 渲染幻灯片列表
+    function renderSlides() {
+        const container = document.getElementById('slidesContainer');
+        
+        if (currentSlides.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-12 text-gray-400">
+                    <p>点击"添加幻灯片"开始创建您的演示文稿</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = '';
+        
+        currentSlides.forEach((slide, index) => {
+            const slideElement = document.createElement('div');
+            slideElement.className = 'slide-preview' + (index === currentSlideIndex ? ' border-blue-500' : '');
+            slideElement.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-medium text-gray-800">${slide.title}</h3>
+                    <button onclick="deleteSlide(${index})" class="text-red-500 hover:text-red-700">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-sm text-gray-600 mb-3">
+                    <span class="px-2 py-1 bg-gray-100 rounded">${slide.layout}</span>
+                </div>
+                <div class="slide-content-editor" 
+                     contenteditable="true"
+                     oninput="updateSlideContent(${index}, this.innerText)"
+                     data-index="${index}">
+                    ${slide.content || '点击编辑内容...'}
+                </div>
+                ${slide.images.length > 0 ? `
+                    <div class="mt-3">
+                        <div class="text-sm font-medium text-gray-700 mb-1">已添加图片</div>
+                        <div class="flex space-x-2 overflow-x-auto">
+                            ${slide.images.map(img => `
+                                <img src="${img.thumb_url || img.url}" class="w-16 h-12 object-cover rounded">
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+            slideElement.onclick = (e) => {
+                if (!e.target.closest('button') && !e.target.contentEditable) {
+                    showSlide(index);
+                }
+            };
+            container.appendChild(slideElement);
+        });
+    }
+    
+    // 显示指定幻灯片
+    function showSlide(index) {
+        currentSlideIndex = index;
+        renderSlides();
+    }
+    
+    // 更新幻灯片内容
+    function updateSlideContent(index, content) {
+        if (currentSlides[index]) {
+            currentSlides[index].content = content;
+        }
+    }
+    
+    // 删除幻灯片
+    function deleteSlide(index) {
+        if (confirm('确定要删除这张幻灯片吗？')) {
+            currentSlides.splice(index, 1);
+            if (currentSlideIndex >= currentSlides.length) {
+                currentSlideIndex = Math.max(0, currentSlides.length - 1);
+            }
+            renderSlides();
+        }
+    }
+    
+    // 保存项目
+    function saveProject() {
+        const title = document.getElementById('projectTitle').value.trim();
+        const description = document.getElementById('projectDescription').value.trim();
+        
+        if (!title) {
+            showToast('请输入项目标题', 'error');
+            return;
+        }
+        
+        const projectData = {
+            title: title,
+            description: description,
+            template_id: selectedTemplateId,
+            content_data: {
+                slides: currentSlides
+            }
+        };
+        
+        fetch('/api/ppt/projects', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(projectData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentProject = data.data;
+                showToast('项目保存成功', 'success');
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('保存项目失败:', error);
+            showToast('保存项目失败', 'error');
+        });
+    }
+    
+    // 生成PPTX
+    function generatePPTX() {
+        if (!currentProject) {
+            showToast('请先保存项目', 'error');
+            return;
+        }
+        
+        fetch(`/api/ppt/projects/${currentProject.id}/generate-pptx`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('PPTX生成成功', 'success');
+                // 提供下载链接
+                if (data.data.download_url) {
+                    window.open(data.data.download_url, '_blank');
+                }
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('生成PPTX失败:', error);
+            showToast('生成PPTX失败', 'error');
+        });
+    }
+    
+    // 生成HTML
+    function generateHTML() {
+        if (!currentProject) {
+            showToast('请先保存项目', 'error');
+            return;
+        }
+        
+        fetch(`/api/ppt/projects/${currentProject.id}/generate-html`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('HTML生成成功', 'success');
+                // 在新窗口打开预览
+                if (data.data.view_url) {
+                    window.open(data.data.view_url, '_blank');
+                }
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('生成HTML失败:', error);
+            showToast('生成HTML失败', 'error');
+        });
+    }
+    
+    // AI优化内容
+    function optimizeContent() {
+        const currentSlide = currentSlides[currentSlideIndex];
+        if (!currentSlide) {
+            showToast('请先选择一张幻灯片', 'error');
+            return;
+        }
+        
+        const optimizationType = document.getElementById('optimizationType').value;
+        
+        const contentData = {
+            title: currentSlide.title,
+            content: currentSlide.content
+        };
+        
+        fetch('/api/ppt/optimize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                content_data: contentData,
+                optimization_type: optimizationType
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新幻灯片内容
+                if (data.data.optimized_content.content) {
+                    currentSlides[currentSlideIndex].content = data.data.optimized_content.content;
+                    renderSlides();
+                }
+                
+                // 显示AI建议
+                showAISuggestion(data.message);
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('内容优化失败:', error);
+            showToast('内容优化失败', 'error');
+        });
+    }
+    
+    // 搜索图片
+    function searchImages() {
+        const keywords = document.getElementById('imageKeywords').value.trim();
+        
+        if (!keywords) {
+            showToast('请输入搜索关键词', 'error');
+            return;
+        }
+        
+        const keywordList = keywords.split(/[,\s]+/).filter(k => k);
+        
+        fetch('/api/ppt/search-images', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                keywords: keywordList,
+                count: 9
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderImageResults(data.data.images);
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('搜索图片失败:', error);
+            showToast('搜索图片失败', 'error');
+        });
+    }
+    
+    // 匹配图片
+    function matchImages() {
+        const currentSlide = currentSlides[currentSlideIndex];
+        if (!currentSlide) {
+            showToast('请先选择一张幻灯片', 'error');
+            return;
+        }
+        
+        const contentData = {
+            title: currentSlide.title,
+            content: currentSlide.content
+        };
+        
+        fetch('/api/ppt/match-images', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                content_data: contentData,
+                image_count: 6
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderImageResults(data.data.images);
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('匹配图片失败:', error);
+            showToast('匹配图片失败', 'error');
+        });
+    }
+    
+    // 渲染图片结果
+    function renderImageResults(images) {
+        const container = document.getElementById('imageResults');
+        
+        if (images.length === 0) {
+            container.innerHTML = '<div class="col-span-3 text-center py-8 text-gray-400">未找到相关图片</div>';
+            return;
+        }
+        
+        container.innerHTML = '';
+        
+        images.forEach(image => {
+            const imageElement = document.createElement('div');
+            imageElement.className = 'image-search-result';
+            imageElement.innerHTML = `
+                <img src="${image.thumb_url || image.url}" class="image-preview" alt="${image.description || ''}">
+                <div class="mt-2 text-xs text-gray-600 truncate">${image.description || '无描述'}</div>
+                <div class="mt-1 text-xs text-gray-500">作者: ${image.author || '未知'}</div>
+            `;
+            imageElement.onclick = () => addImageToSlide(image);
+            container.appendChild(imageElement);
+        });
+    }
+    
+    // 添加图片到当前幻灯片
+    function addImageToSlide(image) {
+        const currentSlide = currentSlides[currentSlideIndex];
+        if (!currentSlide) {
+            showToast('请先选择一张幻灯片', 'error');
+            return;
+        }
+        
+        if (!currentSlide.images) {
+            currentSlide.images = [];
+        }
+        
+        currentSlide.images.push(image);
+        renderSlides();
+        showToast('图片已添加到当前幻灯片', 'success');
+    }
+    
+    // 显示AI建议
+    function showAISuggestion(message) {
+        const suggestionDiv = document.getElementById('aiSuggestion');
+        const contentDiv = document.getElementById('suggestionContent');
+        
+        contentDiv.textContent = message;
+        suggestionDiv.classList.remove('hidden');
+    }
+    
+    // 模态框相关函数
+    function openUploadModal() {
+        document.getElementById('uploadTemplateModal').classList.remove('hidden');
+    }
+    
+    function closeUploadModal() {
+        document.getElementById('uploadTemplateModal').classList.add('hidden');
+    }
+    
+    function uploadTemplate() {
+        const fileInput = document.getElementById('templateFile');
+        const name = document.getElementById('templateName').value.trim();
+        const description = document.getElementById('templateDescription').value.trim();
+        const category = document.getElementById('templateCategory').value;
+        
+        if (!fileInput.files[0]) {
+            showToast('请选择模板文件', 'error');
+            return;
+        }
+        
+        if (!name) {
+            showToast('请输入模板名称', 'error');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('template_file', fileInput.files[0]);
+        formData.append('name', name);
+        formData.append('description', description);
+        formData.append('category', category);
+        formData.append('style_type', '信息图风');
+        formData.append('is_public', false);
+        
+        fetch('/api/ppt/templates/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('模板上传成功', 'success');
+                closeUploadModal();
+                loadTemplates();
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('上传模板失败:', error);
+            showToast('上传模板失败', 'error');
+        });
+    }
+    
+    // 分享相关函数
+    function openShareModal() {
+        if (!currentProject) {
+            showToast('请先保存项目', 'error');
+            return;
+        }
+        
+        fetch(`/api/ppt/projects/${currentProject.id}/share`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                expires_hours: 24
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('shareLink').value = data.data.full_url;
+                document.getElementById('shareModal').classList.remove('hidden');
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('创建分享链接失败:', error);
+            showToast('创建分享链接失败', 'error');
+        });
+    }
+    
+    function closeShareModal() {
+        document.getElementById('shareModal').classList.add('hidden');
+    }
+    
+    function copyShareLink() {
+        const shareLink = document.getElementById('shareLink');
+        shareLink.select();
+        document.execCommand('copy');
+        showToast('链接已复制到剪贴板', 'success');
+    }
+    
+    // 设置事件监听器
+    function setupEventListeners() {
+        // 按钮事件
+        document.getElementById('addSlide').onclick = addSlide;
+        document.getElementById('deleteSlide').onclick = () => deleteSlide(currentSlideIndex);
+        document.getElementById('saveProject').onclick = saveProject;
+        document.getElementById('generatePPTX').onclick = generatePPTX;
+        document.getElementById('generateHTML').onclick = generateHTML;
+        document.getElementById('optimizeContent').onclick = optimizeContent;
+        document.getElementById('searchImages').onclick = searchImages;
+        document.getElementById('matchImages').onclick = matchImages;
+        
+        // 模板筛选
+        document.getElementById('showPublicTemplates').onchange = loadTemplates;
+    }
+    
+    // 工具函数
+    function showToast(message, type = 'info') {
+        // 简单的toast实现
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-500 text-white' :
+            type === 'error' ? 'bg-red-500 text-white' :
+            'bg-blue-500 text-white'
+        }`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+</script>
+{% endblock %}

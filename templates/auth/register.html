@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}注册 - 智能办公文档处理助手{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white rounded-2xl card-shadow p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                <i class="fas fa-user-plus text-green-600 text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">创建新账户</h1>
+            <p class="text-gray-600">注册后即可体验AI办公自动化</p>
+        </div>
+        
+        <form id="registerForm" method="POST">
+            <div class="space-y-6">
+                <!-- 用户名 -->
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-2">
+                        用户名
+                    </label>
+                    <input type="text" id="username" name="username" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="请输入用户名（唯一标识）">
+                    <p class="text-xs text-gray-500 mt-1">用户名用于登录，长度为3-20个字符</p>
+                </div>
+                
+                <!-- 邮箱 -->
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+                        电子邮箱
+                    </label>
+                    <input type="email" id="email" name="email" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="请输入有效邮箱">
+                    <p class="text-xs text-gray-500 mt-1">用于账户验证和通知</p>
+                </div>
+                
+                <!-- 密码 -->
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                        密码
+                    </label>
+                    <input type="password" id="password" name="password" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="请输入密码（至少6位）">
+                    <div class="password-strength mt-2 hidden">
+                        <div class="flex space-x-1">
+                            <div class="h-1 flex-grow bg-gray-300 rounded"></div>
+                            <div class="h-1 flex-grow bg-gray-300 rounded"></div>
+                            <div class="h-1 flex-grow bg-gray-300 rounded"></div>
+                            <div class="h-1 flex-grow bg-gray-300 rounded"></div>
+                        </div>
+                        <p class="text-xs mt-1 text-gray-500">密码强度：<span id="strengthText">弱</span></p>
+                    </div>
+                </div>
+                
+                <!-- 确认密码 -->
+                <div>
+                    <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-2">
+                        确认密码
+                    </label>
+                    <input type="password" id="confirm_password" name="confirm_password" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="请再次输入密码">
+                    <p class="text-xs text-gray-500 mt-1" id="passwordMatch"></p>
+                </div>
+                
+                <!-- 服务条款 -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="flex items-start">
+                        <input type="checkbox" id="terms" name="terms" required
+                            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1">
+                        <label for="terms" class="ml-2 text-sm text-gray-700">
+                            我同意 <a href="#" class="text-blue-600 hover:text-blue-800">服务条款</a> 和
+                            <a href="#" class="text-blue-600 hover:text-blue-800">隐私政策</a>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 提交按钮 -->
+                <button type="submit" id="submitBtn"
+                    class="w-full btn-primary py-3 text-lg font-medium">
+                    <i class="fas fa-user-plus mr-2"></i>注册账户
+                </button>
+                
+                <!-- 登录链接 -->
+                <div class="text-center pt-4">
+                    <p class="text-gray-600">
+                        已有账户？
+                        <a href="{{ url_for('auth.login') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                            立即登录
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </form>
+        
+        <!-- API测试区域（开发用） -->
+        <div class="mt-8 pt-8 border-t border-gray-200">
+            <h3 class="text-sm font-medium text-gray-500 mb-4">开发者测试</h3>
+            <div class="space-y-3">
+                <button onclick="testApiRegister()" class="w-full text-left px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+                    <i class="fas fa-vial mr-2"></i>测试API注册
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 密码强度检测
+    $('#password').on('input', function() {
+        const password = $(this).val();
+        const strengthBar = $('.password-strength');
+        
+        if (password.length === 0) {
+            strengthBar.addClass('hidden');
+            return;
+        }
+        
+        strengthBar.removeClass('hidden');
+        
+        // 简单强度计算
+        let strength = 0;
+        if (password.length >= 6) strength++;
+        if (password.length >= 8) strength++;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+        
+        // 限制最大强度为4
+        strength = Math.min(strength, 4);
+        
+        // 更新UI
+        const bars = strengthBar.find('.flex > div');
+        bars.removeClass('bg-red-500 bg-yellow-500 bg-green-500');
+        
+        let strengthText = '弱';
+        let colorClass = 'bg-red-500';
+        
+        if (strength >= 3) {
+            strengthText = '强';
+            colorClass = 'bg-green-500';
+        } else if (strength >= 2) {
+            strengthText = '中';
+            colorClass = 'bg-yellow-500';
+        }
+        
+        for (let i = 0; i < strength; i++) {
+            $(bars[i]).addClass(colorClass);
+        }
+        
+        $('#strengthText').text(strengthText);
+    });
+    
+    // 密码匹配检测
+    $('#confirm_password').on('input', function() {
+        const password = $('#password').val();
+        const confirmPassword = $(this).val();
+        const matchText = $('#passwordMatch');
+        
+        if (confirmPassword.length === 0) {
+            matchText.text('');
+            return;
+        }
+        
+        if (password === confirmPassword) {
+            matchText.text('密码匹配 ✓').css('color', '#10b981');
+        } else {
+            matchText.text('密码不匹配 ✗').css('color', '#ef4444');
+        }
+    });
+    
+    // 表单提交处理
+    $('#registerForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        // 验证密码匹配
+        if ($('#password').val() !== $('#confirm_password').val()) {
+            alert('两次输入的密码不一致，请检查后重试');
+            return;
+        }
+        
+        // 验证服务条款
+        if (!$('#terms').is(':checked')) {
+            alert('请阅读并同意服务条款和隐私政策');
+            return;
+        }
+        
+        const submitBtn = $('#submitBtn');
+        const originalText = submitBtn.html();
+        submitBtn.html('<i class="fas fa-spinner fa-spin mr-2"></i>注册中...');
+        submitBtn.prop('disabled', true);
+        
+        const formData = {
+            username: $('#username').val(),
+            email: $('#email').val(),
+            password: $('#password').val(),
+            confirm_password: $('#confirm_password').val()
+        };
+        
+        // 使用AJAX提交
+        $.ajax({
+            url: '{{ url_for("auth.api_register") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                if (response.success) {
+                    alert('注册成功！请登录');
+                    window.location.href = '{{ url_for("auth.login") }}';
+                } else {
+                    const errors = response.errors || [response.message || '注册失败'];
+                    alert('注册失败：\n' + errors.join('\n'));
+                    submitBtn.html(originalText);
+                    submitBtn.prop('disabled', false);
+                }
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON;
+                const errorMsg = error?.errors ? error.errors.join('\n') : (error?.message || '网络错误，请稍后重试');
+                alert('注册失败：\n' + errorMsg);
+                submitBtn.html(originalText);
+                submitBtn.prop('disabled', false);
+            }
+        });
+    });
+    
+    // API测试函数
+    function testApiRegister() {
+        const testData = {
+            username: 'testuser_' + Math.floor(Math.random() * 1000),
+            email: 'test' + Math.floor(Math.random() * 1000) + '@example.com',
+            password: 'testpass123',
+            confirm_password: 'testpass123'
+        };
+        
+        $.ajax({
+            url: '{{ url_for("auth.api_register") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(testData),
+            success: function(response) {
+                alert('API注册测试：' + JSON.stringify(response, null, 2));
+            },
+            error: function(xhr) {
+                alert('API注册测试错误：' + xhr.status + ' ' + xhr.statusText);
+            }
+        });
+    }
+</script>
+{% endblock %}

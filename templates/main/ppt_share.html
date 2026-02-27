@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} - 分享PPT{% endblock %}
+
+{% block head_extra %}
+<style>
+    .ppt-viewer {
+        background-color: #f8f9fa;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .ppt-slide {
+        aspect-ratio: 16/9;
+        background-color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    
+    .slide-placeholder {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+    
+    .slide-placeholder h3 {
+        color: #495057;
+        margin-bottom: 15px;
+    }
+    
+    .slide-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        background-color: white;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .slide-counter {
+        font-size: 14px;
+        color: #6c757d;
+    }
+    
+    .download-options {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .project-info {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    
+    .btn-fullscreen {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+    
+    .fullscreen-mode .ppt-viewer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 0;
+        z-index: 999;
+    }
+    
+    .fullscreen-mode .slide-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- 项目信息 -->
+    <div class="project-info mb-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ project.title }}</h1>
+                {% if project.description %}
+                <p class="mt-2 text-gray-600">{{ project.description }}</p>
+                {% endif %}
+            </div>
+            <div class="mt-4 md:mt-0 text-sm text-gray-500">
+                创建于 {{ project.created_at.strftime('%Y年%m月%d日') }}
+                {% if project.share_expires %}
+                <br>分享链接有效期至 {{ project.share_expires.strftime('%Y年%m月%d日 %H:%M') }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- PPT查看器 -->
+        <div class="lg:col-span-2">
+            <div class="ppt-viewer">
+                <!-- 当前幻灯片 -->
+                <div class="ppt-slide" id="currentSlide">
+                    <div class="slide-placeholder">
+                        {% if project.generated_pptx_path %}
+                        <div class="mb-4">
+                            <svg class="w-16 h-16 mx-auto text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">PPT内容预览</h3>
+                        <p class="mb-4">这是一个演示文稿的分享版本</p>
+                        {% else %}
+                        <div class="mb-4">
+                            <svg class="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">PPT尚未生成</h3>
+                        <p>创建者尚未生成此PPT的最终版本</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 幻灯片导航 -->
+                <div class="slide-nav">
+                    <button id="prevSlide" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
+                        上一页
+                    </button>
+                    
+                    <div class="slide-counter">
+                        <span id="currentSlideNumber">1</span> / <span id="totalSlides">1</span>
+                    </div>
+                    
+                    <button id="nextSlide" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
+                        下一页
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 全屏模式按钮 -->
+            <button id="toggleFullscreen" class="btn-fullscreen mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                全屏演示
+            </button>
+        </div>
+        
+        <!-- 下载和操作面板 -->
+        <div class="lg:col-span-1">
+            <div class="download-options">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">下载选项</h2>
+                
+                <div class="space-y-3">
+                    {% if project.generated_pptx_path %}
+                    <a href="/static/{{ project.generated_pptx_path }}" 
+                       class="block w-full px-4 py-3 bg-blue-600 text-white text-center rounded-md hover:bg-blue-700 transition-colors">
+                        <div class="font-medium">下载PPTX文件</div>
+                        <div class="text-sm opacity-90">Microsoft PowerPoint格式</div>
+                    </a>
+                    {% endif %}
+                    
+                    {% if project.generated_html_path %}
+                    <a href="/static/{{ project.generated_html_path }}" 
+                       target="_blank"
+                       class="block w-full px-4 py-3 bg-green-600 text-white text-center rounded-md hover:bg-green-700 transition-colors">
+                        <div class="font-medium">在线查看HTML版本</div>
+                        <div class="text-sm opacity-90">在浏览器中直接查看</div>
+                    </a>
+                    {% endif %}
+                    
+                    {% if not project.generated_pptx_path and not project.generated_html_path %}
+                    <div class="text-center py-6 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p>暂无可用下载选项</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if project.generated_html_path %}
+                <div class="mt-6 pt-6 border-t">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">演示控制</h3>
+                    <div class="flex space-x-2">
+                        <button id="startPresentation" 
+                                class="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700">
+                            开始演示
+                        </button>
+                        <button id="exportPDF" 
+                                class="flex-1 px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700">
+                            导出PDF
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- 分享信息 -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">分享信息</h2>
+                
+                <div class="space-y-3">
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">分享链接</div>
+                        <div class="mt-1 flex">
+                            <input type="text" id="shareUrl" 
+                                   value="{{ request.host_url.rstrip('/') }}/ppt/share/{{ project.share_token }}"
+                                   readonly
+                                   class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md text-sm">
+                            <button onclick="copyShareUrl()"
+                                    class="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 text-sm">
+                                复制
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">分享状态</div>
+                        <div class="mt-1 flex items-center">
+                            {% if project.share_expires and project.share_expires > now %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                有效
+                            </span>
+                            <span class="ml-2 text-sm text-gray-500">
+                                剩余 {{ ((project.share_expires - now).total_seconds() / 3600)|round(1) }} 小时
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                已过期
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t">
+                    <div class="text-sm text-gray-600">
+                        <p>这是一个通过智能办公文档处理助手生成的演示文稿。</p>
+                        <p class="mt-2">如需编辑或查看完整功能，请访问原系统。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 全屏模式 -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 幻灯片数据
+        let slides = [];
+        let currentSlideIndex = 0;
+        
+        // 初始化幻灯片数据
+        function initSlides() {
+            // 这里应该从API获取实际的幻灯片数据
+            // 暂时使用占位数据
+            slides = [
+                { id: 1, title: "封面", content: "{{ project.title }}" },
+                { id: 2, title: "内容页", content: "这是演示文稿的内容页" },
+                { id: 3, title: "结尾", content: "谢谢观看" }
+            ];
+            
+            updateSlideDisplay();
+        }
+        
+        // 更新幻灯片显示
+        function updateSlideDisplay() {
+            const currentSlide = slides[currentSlideIndex];
+            if (!currentSlide) return;
+            
+            const slideContainer = document.getElementById('currentSlide');
+            slideContainer.innerHTML = `
+                <div class="slide-placeholder">
+                    <h3 class="text-xl font-semibold mb-3">${currentSlide.title}</h3>
+                    <p>${currentSlide.content}</p>
+                    <div class="mt-6 text-sm text-gray-500">
+                        幻灯片 ${currentSlideIndex + 1} / ${slides.length}
+                    </div>
+                </div>
+            `;
+            
+            // 更新计数器
+            document.getElementById('currentSlideNumber').textContent = currentSlideIndex + 1;
+            document.getElementById('totalSlides').textContent = slides.length;
+            
+            // 更新按钮状态
+            document.getElementById('prevSlide').disabled = currentSlideIndex === 0;
+            document.getElementById('nextSlide').disabled = currentSlideIndex === slides.length - 1;
+        }
+        
+        // 上一张幻灯片
+        document.getElementById('prevSlide').onclick = function() {
+            if (currentSlideIndex > 0) {
+                currentSlideIndex--;
+                updateSlideDisplay();
+            }
+        };
+        
+        // 下一张幻灯片
+        document.getElementById('nextSlide').onclick = function() {
+            if (currentSlideIndex < slides.length - 1) {
+                currentSlideIndex++;
+                updateSlideDisplay();
+            }
+        };
+        
+        // 全屏模式
+        document.getElementById('toggleFullscreen').onclick = function() {
+            const viewer = document.querySelector('.ppt-viewer');
+            const nav = document.querySelector('.slide-nav');
+            const fullscreenBtn = document.getElementById('toggleFullscreen');
+            
+            if (!document.body.classList.contains('fullscreen-mode')) {
+                // 进入全屏
+                document.body.classList.add('fullscreen-mode');
+                fullscreenBtn.textContent = '退出全屏';
+                fullscreenBtn.classList.remove('btn-fullscreen');
+                
+                // 隐藏其他元素
+                document.querySelectorAll('header, .project-info, .download-options, .btn-fullscreen')
+                    .forEach(el => el.style.display = 'none');
+                
+                // 显示导航
+                nav.style.display = 'flex';
+                
+            } else {
+                // 退出全屏
+                document.body.classList.remove('fullscreen-mode');
+                fullscreenBtn.textContent = '全屏演示';
+                fullscreenBtn.classList.add('btn-fullscreen');
+                
+                // 显示其他元素
+                document.querySelectorAll('header, .project-info, .download-options, .btn-fullscreen')
+                    .forEach(el => el.style.display = '');
+            }
+        };
+        
+        // 开始演示
+        document.getElementById('startPresentation')?.addEventListener('click', function() {
+            alert('演示模式即将开启...');
+            // 这里应该实现实际的演示模式
+        });
+        
+        // 导出PDF
+        document.getElementById('exportPDF')?.addEventListener('click', function() {
+            alert('PDF导出功能即将开启...');
+            // 这里应该实现PDF导出
+        });
+        
+        // 键盘控制
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--;
+                    updateSlideDisplay();
+                }
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                if (currentSlideIndex < slides.length - 1) {
+                    currentSlideIndex++;
+                    updateSlideDisplay();
+                }
+            } else if (event.key === 'Escape') {
+                // 退出全屏
+                if (document.body.classList.contains('fullscreen-mode')) {
+                    document.body.classList.remove('fullscreen-mode');
+                    document.getElementById('toggleFullscreen').textContent = '全屏演示';
+                    
+                    // 显示其他元素
+                    document.querySelectorAll('header, .project-info, .download-options, .btn-fullscreen')
+                        .forEach(el => el.style.display = '');
+                }
+            } else if (event.key === 'F' || event.key === 'f') {
+                // 全屏切换
+                document.getElementById('toggleFullscreen').click();
+            }
+        });
+        
+        // 复制分享链接
+        window.copyShareUrl = function() {
+            const shareUrl = document.getElementById('shareUrl');
+            shareUrl.select();
+            document.execCommand('copy');
+            
+            // 显示提示
+            alert('链接已复制到剪贴板');
+        };
+        
+        // 初始化
+        initSlides();
+        
+        // 检查HTML版本是否存在
+        {% if project.generated_html_path %}
+        // 尝试加载HTML版本
+        fetch('/static/{{ project.generated_html_path }}')
+            .then(response => {
+                if (response.ok) {
+                    console.log('HTML版本可用');
+                }
+            })
+            .catch(error => {
+                console.log('HTML版本加载失败:', error);
+            });
+        {% endif %}
+    });
+</script>
+{% endblock %}
